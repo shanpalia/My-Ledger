@@ -33,10 +33,18 @@ workflows:
             fi
           done
 
-      - name: Verify Gradle
+      - name: Install Gradle 9.3.1
         script: |
           set -e
-          ./gradlew --version
+          GRADLE_VERSION=9.3.1
+          GRADLE_HOME="$CM_BUILD_DIR/.gradle-bin/gradle-$GRADLE_VERSION"
+          mkdir -p "$CM_BUILD_DIR/.gradle-bin"
+          if [ ! -x "$GRADLE_HOME/bin/gradle" ]; then
+            curl -L --fail --retry 3 -o "$CM_BUILD_DIR/.gradle-bin/gradle-$GRADLE_VERSION-bin.zip" \
+              "https://services.gradle.org/distributions/gradle-$GRADLE_VERSION-bin.zip"
+            unzip -q "$CM_BUILD_DIR/.gradle-bin/gradle-$GRADLE_VERSION-bin.zip" -d "$CM_BUILD_DIR/.gradle-bin"
+          fi
+          "$GRADLE_HOME/bin/gradle" --version
 
       - name: Create release signing key
         script: |
@@ -63,7 +71,8 @@ workflows:
           export STORE_PASSWORD="changeit"
           export KEY_ALIAS="upload"
           export KEY_PASSWORD="changeit"
-          ./gradlew --no-daemon --no-configuration-cache clean assembleRelease
+          GRADLE_HOME="$CM_BUILD_DIR/.gradle-bin/gradle-9.3.1"
+          "$GRADLE_HOME/bin/gradle" --no-daemon --no-configuration-cache clean assembleRelease
 
       - name: Prepare APK artifact
         script: |
