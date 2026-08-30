@@ -41,7 +41,7 @@ var mobile by remember { mutableStateOf("") }
 var address by remember { mutableStateOf("") }
 var expanded by remember { mutableStateOf(false) }
 
-```
+
 val categories = listOf(
     "General Shop",
     "Grocery",
@@ -182,6 +182,4 @@ Scaffold(
         }
     }
 }
-```
 
-}
