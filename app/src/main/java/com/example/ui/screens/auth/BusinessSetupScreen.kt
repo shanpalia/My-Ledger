@@ -92,6 +92,7 @@ Scaffold(
         Box(
             modifier = Modifier.fillMaxWidth()
         ) {
+
             OutlinedTextField(
                 value = category,
                 onValueChange = {},
@@ -131,7 +132,9 @@ Scaffold(
 
         OutlinedTextField(
             value = mobile,
-            onValueChange = { mobile = it },
+            onValueChange = {
+                mobile = it
+            },
             label = {
                 Text("Mobile Number *")
             },
@@ -144,7 +147,9 @@ Scaffold(
 
         OutlinedTextField(
             value = address,
-            onValueChange = { address = it },
+            onValueChange = {
+                address = it
+            },
             label = {
                 Text("Shop Address (Optional)")
             },
@@ -165,10 +170,10 @@ Scaffold(
                     "",
                     ""
                 )
+
                 onComplete()
             },
-            enabled =
-                name.isNotBlank() &&
+            enabled = name.isNotBlank() &&
                 category.isNotBlank() &&
                 mobile.isNotBlank(),
             modifier = Modifier.fillMaxWidth()
