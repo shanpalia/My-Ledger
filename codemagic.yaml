@@ -1,0 +1,77 @@
+workflows:
+  my-ledger-android:
+    name: My Ledger Signed Release APK
+    max_build_duration: 60
+
+    environment:
+      java: 17
+
+    scripts:
+      - name: Check project files
+        script: |
+          set -e
+          test -d app
+          test -f app/build.gradle.kts
+          test -f settings.gradle.kts
+          test -f build.gradle.kts
+          test -f gradlew
+          test -f gradle/wrapper/gradle-wrapper.properties
+          chmod +x ./gradlew
+          echo "Android project structure OK"
+
+      - name: Clean conflicting launcher resources
+        script: |
+          set -e
+          # Keep the existing WEBP launcher assets. Remove PNG duplicates only when
+          # a WEBP with the same resource name exists in the same folder.
+          find app/src/main/res -type f \( -name 'ic_launcher.png' -o -name 'ic_launcher_round.png' \) -print | while read -r f; do
+            d="$(dirname "$f")"
+            b="$(basename "$f" .png)"
+            if [ -f "$d/$b.webp" ]; then
+              echo "Removing duplicate resource: $f"
+              rm -f "$f"
+            fi
+          done
+
+      - name: Verify Gradle
+        script: |
+          set -e
+          ./gradlew --version
+
+      - name: Create release signing key
+        script: |
+          set -e
+          KEYSTORE="$CM_BUILD_DIR/my-ledger-release.jks"
+          if [ ! -f "$KEYSTORE" ]; then
+            keytool -genkeypair \
+              -keystore "$KEYSTORE" \
+              -storepass changeit \
+              -keypass changeit \
+              -alias upload \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=My Ledger, OU=My Ledger, O=shanpalia, L=Kanpur, ST=Uttar Pradesh, C=IN" \
+              -noprompt
+          fi
+          echo "Release signing key ready"
+
+      - name: Build signed release APK
+        script: |
+          set -e
+          export KEYSTORE_PATH="$CM_BUILD_DIR/my-ledger-release.jks"
+          export STORE_PASSWORD="changeit"
+          export KEY_ALIAS="upload"
+          export KEY_PASSWORD="changeit"
+          ./gradlew --no-daemon --no-configuration-cache clean assembleRelease
+
+      - name: Prepare APK artifact
+        script: |
+          set -e
+          APK_DIR="app/build/outputs/apk/release"
+          test -f "$APK_DIR/app-release.apk"
+          cp "$APK_DIR/app-release.apk" "$APK_DIR/My-Ledger.apk"
+          ls -lh "$APK_DIR/My-Ledger.apk"
+
+    artifacts:
+      - app/build/outputs/apk/release/My-Ledger.apk
