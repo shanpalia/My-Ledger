@@ -70,12 +70,21 @@ fun AddTransactionScreen(
     var itemQty by remember { mutableStateOf("") }
     var itemPrice by remember { mutableStateOf("") }
     var itemUnit by remember { mutableStateOf("Pc") }
+    var customUnit by remember { mutableStateOf("") }
+    var addingCustomUnit by remember { mutableStateOf(false) }
     var unitExpanded by remember { mutableStateOf(false) }
     var inventoryLines by remember { mutableStateOf(listOf<InventoryLine>()) }
 
     var isCustomerDropdownExpanded by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+
+    val baseUnits = listOf("Pc", "Kg", "Gram", "Litre", "Ml", "Box", "Pack", "Dozen", "Meter", "Feet", "Bag")
+    val savedCustomUnits = activeBiz?.customUnitsCsv.orEmpty()
+        .split(',')
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+    val availableUnits = (baseUnits + savedCustomUnits).distinctBy { it.lowercase() }
 
     val selectedCustomer = customers.find { it.id == selectedCustomerId }
     val currentCustomerSummary = summaries[selectedCustomerId]
@@ -506,11 +515,34 @@ fun AddTransactionScreen(
                                         modifier = Modifier.menuAnchor().fillMaxWidth()
                                     )
                                     ExposedDropdownMenu(expanded = unitExpanded, onDismissRequest = { unitExpanded = false }) {
-                                        listOf("Pc", "Kg", "Gram", "Litre", "Ml", "Box", "Pack", "Dozen", "Meter", "Feet", "Bag", "Other").forEach { unit ->
-                                            DropdownMenuItem(text = { Text(unit) }, onClick = { itemUnit = unit; unitExpanded = false })
+                                        availableUnits.forEach { unit ->
+                                            DropdownMenuItem(text = { Text(unit) }, onClick = {
+                                                itemUnit = unit
+                                                addingCustomUnit = false
+                                                unitExpanded = false
+                                            })
                                         }
+                                        HorizontalDivider()
+                                        DropdownMenuItem(text = { Text("＋ Add custom unit") }, onClick = {
+                                            unitExpanded = false
+                                            addingCustomUnit = true
+                                        })
                                     }
                                 }
+                                if (addingCustomUnit) {
+                                    OutlinedTextField(
+                                        value = customUnit,
+                                        onValueChange = {
+                                            customUnit = it
+                                            if (it.isNotBlank()) itemUnit = it
+                                        },
+                                        label = { Text("Custom Unit") },
+                                        placeholder = { Text("e.g. Bundle, Carton") },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                }
+
                                 OutlinedTextField(
                                     value = itemPrice,
                                     onValueChange = { itemPrice = it },
@@ -541,23 +573,29 @@ fun AddTransactionScreen(
                             if (inventoryLines.isNotEmpty()) {
                                 HorizontalDivider(color = BorderSlate100)
                                 Text("Inventory", fontWeight = FontWeight.Bold)
+                                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Item", modifier = Modifier.weight(1.5f), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                                    Text("Qty", modifier = Modifier.weight(.55f), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                                    Text("Unit", modifier = Modifier.weight(.55f), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                                    Text("Rate", modifier = Modifier.weight(.8f), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                                    Text("Total", modifier = Modifier.weight(.85f), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                                }
                                 inventoryLines.forEachIndexed { index, line ->
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            "${line.itemName} | ${line.quantity} ${line.unit} × ${CurrencyFormatter.formatInr(line.rate)} = ${CurrencyFormatter.formatInr(line.amount)}",
-                                            fontSize = 12.sp,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        TextButton(onClick = {
-                                            inventoryLines = inventoryLines.toMutableList().also { it.removeAt(index) }
-                                        }) { Text("Remove") }
+                                        Text(line.itemName, modifier = Modifier.weight(1.5f), fontSize = 11.sp, maxLines = 2)
+                                        Text(line.quantity.toString(), modifier = Modifier.weight(.55f), fontSize = 11.sp)
+                                        Text(line.unit, modifier = Modifier.weight(.55f), fontSize = 11.sp)
+                                        Text(CurrencyFormatter.formatInr(line.rate), modifier = Modifier.weight(.8f), fontSize = 11.sp)
+                                        Column(modifier = Modifier.weight(.85f), horizontalAlignment = Alignment.End) {
+                                            Text(CurrencyFormatter.formatInr(line.amount), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            TextButton(onClick = { inventoryLines = inventoryLines.toMutableList().also { it.removeAt(index) } }, contentPadding = PaddingValues(0.dp)) { Text("Remove", fontSize = 9.sp) }
+                                        }
                                     }
+                                    HorizontalDivider(color = BorderSlate100)
                                 }
-                                HorizontalDivider(color = BorderSlate100)
                                 Text("Inventory Total: ${CurrencyFormatter.formatInr(inventoryTotal)}", fontWeight = FontWeight.ExtraBold, color = Indigo600)
                                 val amountText = if (amountStr.isBlank()) "₹0" else CurrencyFormatter.formatInr(enteredAmount)
                                 val matchText = if (inventoryMatchesAmount) "MATCHED ✓" else "MISMATCH ✕"

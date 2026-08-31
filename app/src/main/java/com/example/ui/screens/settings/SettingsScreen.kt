@@ -114,12 +114,12 @@ fun SettingsScreen(
                                 color = Color.White
                             )
                             Text(
-                                text = currentProfile?.email?.takeIf { it.isNotBlank() } ?: "Email not set",
+                                text = currentProfile?.email?.takeIf { it.isNotBlank() } ?: activeBiz?.email?.takeIf { it.isNotBlank() } ?: "Email not set",
                                 fontSize = 12.5.sp,
                                 color = Indigo200
                             )
                             Text(
-                                text = "Mobile: ${currentProfile?.mobile?.takeIf { it.isNotBlank() } ?: "Not set"}",
+                                text = "Mobile: ${currentProfile?.mobile?.takeIf { it.isNotBlank() } ?: activeBiz?.mobile?.takeIf { it.isNotBlank() } ?: "Not set"}",
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Indigo100
@@ -188,7 +188,7 @@ fun SettingsScreen(
                                     }
                                 }
                                 Text(
-                                    text = listOfNotNull(biz.city, biz.state).filter { it.isNotEmpty() }.joinToString(", ").ifEmpty { "India" },
+                                    text = biz.businessCategory.ifBlank { listOfNotNull(biz.city, biz.state).filter { it.isNotEmpty() }.joinToString(", ").ifEmpty { "India" } },
                                     fontSize = 11.5.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = if (isSelected) Indigo200 else Slate500
@@ -375,6 +375,9 @@ fun SettingsScreen(
         var email by remember { mutableStateOf(biz.email) }
         var gstNumber by remember { mutableStateOf(biz.gstNumber) }
         var upiId by remember { mutableStateOf(biz.upiId) }
+        var businessCategory by remember { mutableStateOf(biz.businessCategory) }
+        var customCategoriesCsv by remember { mutableStateOf(biz.customCategoriesCsv) }
+        var customUnitsCsv by remember { mutableStateOf(biz.customUnitsCsv) }
 
         Dialog(onDismissRequest = { selectedLogoUri = null; showEditProfileDialog = false }) {
             Card(
@@ -450,6 +453,35 @@ fun SettingsScreen(
                         OutlinedTextField(value = upiId, onValueChange = { upiId = it }, label = { Text("UPI ID (for payments)") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                     }
                     item {
+                        OutlinedTextField(
+                            value = businessCategory,
+                            onValueChange = { businessCategory = it },
+                            label = { Text("Business Category") },
+                            placeholder = { Text("Edit or type your category") },
+                            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = customCategoriesCsv,
+                            onValueChange = { customCategoriesCsv = it },
+                            label = { Text("My Extra Shop Categories") },
+                            placeholder = { Text("Comma separated: Pharmacy, Hardware, Mobile") },
+                            supportingText = { Text("You can add or edit your own categories") },
+                            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = customUnitsCsv,
+                            onValueChange = { customUnitsCsv = it },
+                            label = { Text("My Inventory Units") },
+                            placeholder = { Text("Comma separated: Pc, Kg, Carton, Bundle") },
+                            supportingText = { Text("These units appear in Tally Style Inventory") },
+                            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
@@ -468,7 +500,10 @@ fun SettingsScreen(
                                             mobile = mobile,
                                             email = email,
                                             gstNumber = gstNumber,
-                                            upiId = upiId
+                                            upiId = upiId,
+                                            businessCategory = businessCategory.trim(),
+                                            customCategoriesCsv = customCategoriesCsv,
+                                            customUnitsCsv = customUnitsCsv
                                         ),
                                         newLogoSource = selectedLogoUri?.toString()
                                     )
@@ -498,6 +533,7 @@ fun SettingsScreen(
         var newBizEmail by remember { mutableStateOf("") }
         var newBizGst by remember { mutableStateOf("") }
         var newBizUpi by remember { mutableStateOf("") }
+        var newBizCategory by remember { mutableStateOf("") }
 
         Dialog(onDismissRequest = { showCreateBizDialog = false }) {
             Card(
@@ -520,6 +556,9 @@ fun SettingsScreen(
                     }
                     item {
                         OutlinedTextField(value = newBizEmail, onValueChange = { newBizEmail = it }, label = { Text("Email") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+                    }
+                    item {
+                        OutlinedTextField(value = newBizCategory, onValueChange = { newBizCategory = it }, label = { Text("Business Category") }, placeholder = { Text("e.g. Grocery, Pharmacy, Machinery") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                     }
                     item {
                         OutlinedTextField(value = newBizAddress, onValueChange = { newBizAddress = it }, label = { Text("Address") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
@@ -558,7 +597,9 @@ fun SettingsScreen(
                                             mobile = newBizMobile.trim(),
                                             email = newBizEmail.trim(),
                                             gstNumber = newBizGst.trim(),
-                                            upiId = newBizUpi.trim()
+                                            upiId = newBizUpi.trim(),
+                                            businessCategory = newBizCategory.trim(),
+                                            customCategoriesCsv = newBizCategory.trim()
                                         )
                                         showCreateBizDialog = false
                                     }

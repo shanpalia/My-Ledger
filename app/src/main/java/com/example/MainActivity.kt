@@ -15,7 +15,12 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -54,12 +59,23 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector,
 @Composable
 private fun SplashContent() {
     Surface(modifier = Modifier.fillMaxSize(), color = Indigo600) {
-        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
+        ) {
+            Image(
+                painter = painterResource(com.example.R.drawable.my_ledger_exact_user_icon),
+                contentDescription = "My Ledger",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(128.dp).clip(RoundedCornerShape(28.dp))
+            )
+            Spacer(Modifier.height(18.dp))
             Text("MY LEDGER", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.height(10.dp))
-            Text("Smart Debit • Credit • Ledger", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp)
-            Spacer(Modifier.height(30.dp))
-            Text("Developer by shanpalia", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            Text("MY LEDGER by shanpalia", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp)
+            Spacer(Modifier.height(22.dp))
+            Text("Smart Debit • Credit • Balance", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
         }
     }
 }

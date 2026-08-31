@@ -70,100 +70,50 @@ fun DashboardScreen(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 1. Top Header: Clean White Card with Indigo Avatar, Bold Title & Notification/Switcher Action
+        // 1. Business header. Owner-selected image appears only when the owner has chosen one.
         item {
             Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("business_header_card")
-                    .clickable { onOpenBusinessSwitcher() },
+                modifier = Modifier.fillMaxWidth().testTag("business_header_card").clickable { onOpenBusinessSwitcher() },
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                val logo = activeBiz?.logoUrl.orEmpty()
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        // Owner-selected shop image. Default branding is shown when no image is selected.
-                        Box(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Indigo600),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            val logo = activeBiz?.logoUrl.orEmpty()
-                            if (logo.isNotBlank()) {
-                                AsyncImage(
-                                    model = logo,
-                                    contentDescription = "Shop owner image",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            } else {
-                                Text(
-                                    text = "MY\nLEDGER",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 11.sp,
-                                    lineHeight = 12.sp
-                                )
-                            }
-                        }
-
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = activeBiz?.businessName ?: "MY LEDGER",
-                                    color = Slate900,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.KeyboardArrowDown,
-                                    contentDescription = "Switch Business",
-                                    tint = Slate400,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                            Text(
-                                text = if (activeBiz?.logoUrl.isNullOrBlank()) "MY LEDGER by shanpalia" else DateUtils.formatDate(System.currentTimeMillis()),
-                                color = Slate500,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+                    if (logo.isNotBlank()) {
+                        AsyncImage(
+                            model = logo,
+                            contentDescription = "Shop owner image",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.align(Alignment.CenterStart).size(56.dp).clip(RoundedCornerShape(16.dp))
+                        )
                     }
 
-                    // Circular action button
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = if (logo.isNotBlank()) 64.dp else 40.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = activeBiz?.businessName ?: "MY LEDGER",
+                                color = Slate900,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 17.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Switch Business", tint = Slate400, modifier = Modifier.size(18.dp))
+                        }
+                        Text("MY LEDGER by shanpalia", color = Slate500, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+
                     Surface(
                         shape = CircleShape,
                         color = Slate100,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clickable { onOpenBusinessSwitcher() }
+                        modifier = Modifier.align(Alignment.CenterEnd).size(40.dp).clickable { onOpenBusinessSwitcher() }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Outlined.Storefront,
-                                contentDescription = "Shops",
-                                tint = Slate600,
-                                modifier = Modifier.size(20.dp)
-                            )
+                            Icon(Icons.Outlined.Storefront, contentDescription = "Shops", tint = Slate600, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -270,6 +220,44 @@ fun DashboardScreen(
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFFCA5A5) // red-300
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Live customer balances: horizontally scrollable and updated from current transactions.
+        if (customers.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Live Customer Balances", fontWeight = FontWeight.Bold, color = Slate900, fontSize = 15.sp)
+                        Text("Tap a customer", color = Slate500, fontSize = 11.sp)
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(customers, key = { it.id }) { customer ->
+                            val balance = customerSummaries[customer.id]?.netBalance ?: 0.0
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = Color.White,
+                                shadowElevation = 1.dp,
+                                modifier = Modifier.clickable { onNavigateToCustomerLedger(customer.id) }
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                                    Text(customer.name, fontWeight = FontWeight.Bold, color = Slate900, maxLines = 1)
+                                    Text(
+                                        CurrencyFormatter.formatInr(kotlin.math.abs(balance)),
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 15.sp,
+                                        color = if (balance > 0) DebitRed else if (balance < 0) CreditGreen else Slate500
+                                    )
+                                    Text(
+                                        if (balance > 0) "Due" else if (balance < 0) "Advance" else "Settled",
+                                        fontSize = 10.sp,
+                                        color = Slate500
+                                    )
+                                }
                             }
                         }
                     }

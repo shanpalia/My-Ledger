@@ -8,6 +8,11 @@ data class Business(
     @PrimaryKey val id: String,
     val ownerId: String,
     val businessName: String,
+    val businessCategory: String = "",
+    /** User-managed shop categories for this business, stored as comma-separated values. */
+    val customCategoriesCsv: String = "",
+    /** User-managed inventory units for this business, stored as comma-separated values. */
+    val customUnitsCsv: String = "",
     val logoUrl: String = "",
     val address: String = "",
     val city: String = "",

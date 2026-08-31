@@ -223,7 +223,10 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         email: String,
         gstNumber: String,
         upiId: String,
-        logoUrl: String = ""
+        logoUrl: String = "",
+        businessCategory: String = "",
+        customCategoriesCsv: String = "",
+        customUnitsCsv: String = ""
     ) {
         viewModelScope.launch {
             val ownerId = LOCAL_OWNER_ID
@@ -233,6 +236,9 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
                 id = businessId,
                 ownerId = ownerId,
                 businessName = name.trim(),
+                businessCategory = businessCategory.trim(),
+                customCategoriesCsv = customCategoriesCsv.trim(),
+                customUnitsCsv = customUnitsCsv.trim(),
                 logoUrl = savedLogoPath,
                 address = address.trim(),
                 city = city.trim(),
@@ -273,6 +279,35 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
             }
             repository.updateBusiness(updatedBusiness)
             _uiEvent.emit("Business profile updated successfully!")
+        }
+    }
+
+
+    fun updateBusinessCategorySettings(
+        business: Business,
+        selectedCategory: String,
+        customCategoriesCsv: String,
+        customUnitsCsv: String
+    ) {
+        viewModelScope.launch {
+            repository.updateBusiness(
+                business.copy(
+                    businessCategory = selectedCategory.trim(),
+                    customCategoriesCsv = customCategoriesCsv
+                        .split(',')
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinctBy { it.lowercase() }
+                        .joinToString(", "),
+                    customUnitsCsv = customUnitsCsv
+                        .split(',')
+                        .map { it.trim() }
+                        .filter { it.isNotBlank() }
+                        .distinctBy { it.lowercase() }
+                        .joinToString(", ")
+                )
+            )
+            _uiEvent.emit("Shop category and inventory units updated!")
         }
     }
 

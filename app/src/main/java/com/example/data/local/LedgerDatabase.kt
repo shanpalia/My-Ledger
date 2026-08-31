@@ -15,7 +15,7 @@ import com.example.data.model.*
         NotificationRecord::class,
         NotificationSettings::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -35,7 +35,7 @@ abstract class LedgerDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     LedgerDatabase::class.java,
-                    "my_ledger_database.db"
+                    "my_ledger_database_clean.db"
                 ).fallbackToDestructiveMigration().build()
                 INSTANCE = instance
                 instance

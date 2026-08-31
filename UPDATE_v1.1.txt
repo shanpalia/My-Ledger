@@ -1,0 +1,15 @@
+MY LEDGER v1.1 - COMPANY PROFILE & CUSTOM CATEGORY UPDATE
+
+Included in this build:
+1. First company setup now requires and saves Mobile Number and Email.
+2. Settings falls back to active shop Mobile/Email when account profile is empty.
+3. Business Category is stored separately (no longer incorrectly placed in City).
+4. User can edit the active shop category in Settings > Edit Shop Details.
+5. User can add/edit extra shop categories using comma-separated values.
+6. User can add/edit custom inventory units (Carton, Bundle, etc.) in Settings.
+7. Saved custom inventory units appear in the Tally Style Inventory unit dropdown.
+8. Inventory line amount remains automatic: Quantity × Rate.
+9. Save remains locked when Entry Amount and Inventory Total do not exactly match.
+10. Existing splash, live customer balance row, Tally-style reports and launcher icon files are preserved.
+
+Note: Room database version was increased with destructive migration enabled. A clean install uses the new schema. Existing local data may reset on upgrade because the project is configured with fallbackToDestructiveMigration.
