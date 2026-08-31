@@ -8,6 +8,9 @@ workflows:
     scripts:
       - name: Give Gradle permission
         script: chmod +x ./gradlew
+      - name: Remove duplicate launcher resources
+        script: |
+          find app/src/main/res -type f \( -name "ic_launcher.webp" -o -name "ic_launcher_round.webp" \) -delete
       - name: Clean project
         script: ./gradlew clean --no-daemon
       - name: Build signed release APK
