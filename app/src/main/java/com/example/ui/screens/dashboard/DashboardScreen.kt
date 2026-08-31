@@ -27,6 +27,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import com.example.data.model.LedgerTransaction
 import com.example.data.model.TransactionType
 import com.example.ui.theme.*
@@ -91,20 +93,31 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Shop Avatar: w-12 h-12 bg-indigo-600 rounded-2xl
+                        // Owner-selected shop image. Default branding is shown when no image is selected.
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(56.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(Indigo600),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = (activeBiz?.businessName?.take(2) ?: "HT").uppercase(),
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
+                            val logo = activeBiz?.logoUrl.orEmpty()
+                            if (logo.isNotBlank()) {
+                                AsyncImage(
+                                    model = logo,
+                                    contentDescription = "Shop owner image",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Text(
+                                    text = "MY\nLEDGER",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 11.sp,
+                                    lineHeight = 12.sp
+                                )
+                            }
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -113,7 +126,7 @@ fun DashboardScreen(
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 Text(
-                                    text = activeBiz?.businessName ?: "Hafsa Traders",
+                                    text = activeBiz?.businessName ?: "MY LEDGER",
                                     color = Slate900,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 17.sp,
@@ -128,7 +141,7 @@ fun DashboardScreen(
                                 )
                             }
                             Text(
-                                text = DateUtils.formatDate(System.currentTimeMillis()),
+                                text = if (activeBiz?.logoUrl.isNullOrBlank()) "MY LEDGER by shanpalia" else DateUtils.formatDate(System.currentTimeMillis()),
                                 color = Slate500,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium

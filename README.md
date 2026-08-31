@@ -1,22 +1,18 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# My Ledger
 
-# Run and deploy your AI Studio app
+Android debit, credit and inventory ledger application.
 
-This contains everything you need to run your app locally.
+## Features
+- First-run shop setup with no demo businesses, customers or transactions.
+- Exact MY LEDGER launcher icon.
+- Splash screen with developer credit.
+- Shop image/logo can be added during setup and changed later from Settings → Edit Shop Profile.
+- Dashboard shows the shop image; without one it shows MY LEDGER by shanpalia branding.
+- Debit and Credit entries.
+- Optional tally-style inventory with Item Name, Quantity, Unit, Rate and Amount.
+- Inventory total must exactly match the entered transaction amount before saving.
+- Add New Customer from the transaction customer selector.
+- Codemagic workflow included.
 
-View your app in AI Studio: https://ai.studio/apps/03008f64-1cd0-4517-8dc9-214c8cef9f24
-
-## Run Locally
-
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
-
-
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
-7. If you have already published your app in AI Studio, please [request upload key reset](https://support.google.com/googleplay/android-developer/answer/9842756#zippy=%2Crequest-an-upload-key-reset) in Google Play Console.
+## Codemagic
+Use workflow ID `my-ledger-android` from `codemagic.yaml`.

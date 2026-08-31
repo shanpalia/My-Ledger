@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.local.LedgerDatabase
@@ -226,11 +227,13 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     ) {
         viewModelScope.launch {
             val ownerId = LOCAL_OWNER_ID
+            val businessId = UUID.randomUUID().toString()
+            val savedLogoPath = persistBusinessLogo(logoUrl, businessId)
             val newBiz = Business(
-                id = UUID.randomUUID().toString(),
+                id = businessId,
                 ownerId = ownerId,
                 businessName = name.trim(),
-                logoUrl = logoUrl,
+                logoUrl = savedLogoPath,
                 address = address.trim(),
                 city = city.trim(),
                 state = state.trim(),
@@ -247,9 +250,28 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun updateBusinessProfile(business: Business) {
+    private fun persistBusinessLogo(source: String, businessId: String): String {
+        if (source.isBlank()) return ""
+        return try {
+            val uri = Uri.parse(source)
+            val input = getApplication<Application>().contentResolver.openInputStream(uri) ?: return source
+            val dir = File(getApplication<Application>().filesDir, "business_logos").apply { mkdirs() }
+            val target = File(dir, "$businessId.jpg")
+            input.use { it.copyTo(target.outputStream()) }
+            target.absolutePath
+        } catch (_: Exception) {
+            source
+        }
+    }
+
+    fun updateBusinessProfile(business: Business, newLogoSource: String? = null) {
         viewModelScope.launch {
-            repository.updateBusiness(business)
+            val updatedBusiness = if (!newLogoSource.isNullOrBlank()) {
+                business.copy(logoUrl = persistBusinessLogo(newLogoSource, business.id))
+            } else {
+                business
+            }
+            repository.updateBusiness(updatedBusiness)
             _uiEvent.emit("Business profile updated successfully!")
         }
     }

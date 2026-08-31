@@ -38,6 +38,10 @@ import com.example.util.DateUtils
 import com.example.util.NotificationHelper
 import kotlin.math.abs
 
+private data class InventoryLine(val itemName: String, val quantity: Double, val unit: String, val rate: Double) {
+    val amount: Double get() = quantity * rate
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionScreen(
@@ -65,7 +69,9 @@ fun AddTransactionScreen(
     var itemName by remember { mutableStateOf("") }
     var itemQty by remember { mutableStateOf("") }
     var itemPrice by remember { mutableStateOf("") }
-    var inventoryLines by remember { mutableStateOf(listOf<Triple<String, Double, Double>>()) }
+    var itemUnit by remember { mutableStateOf("Pc") }
+    var unitExpanded by remember { mutableStateOf(false) }
+    var inventoryLines by remember { mutableStateOf(listOf<InventoryLine>()) }
 
     var isCustomerDropdownExpanded by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf(false) }
@@ -76,6 +82,8 @@ fun AddTransactionScreen(
     val previousBalance = currentCustomerSummary?.netBalance ?: 0.0
 
     val enteredAmount = amountStr.toDoubleOrNull() ?: 0.0
+    val inventoryTotal = inventoryLines.sumOf { it.amount }
+    val inventoryMatchesAmount = !inventoryMode || (inventoryLines.isNotEmpty() && kotlin.math.abs(enteredAmount - inventoryTotal) < 0.01)
     val newBalance = if (transactionType == TransactionType.DEBIT) {
         previousBalance + enteredAmount
     } else {
@@ -130,6 +138,14 @@ fun AddTransactionScreen(
                                 Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
+                            if (inventoryMode && inventoryLines.isEmpty()) {
+                                Toast.makeText(context, "Add at least one inventory item", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            if (inventoryMode && !inventoryMatchesAmount) {
+                                Toast.makeText(context, "Tally mismatch: entry amount and inventory total must be exactly the same", Toast.LENGTH_LONG).show()
+                                return@Button
+                            }
 
                             isSaving = true
                             viewModel.addTransaction(
@@ -138,7 +154,7 @@ fun AddTransactionScreen(
                                 amount = amt,
                                 description = buildString {
                                     if (inventoryLines.isNotEmpty()) {
-                                        append(inventoryLines.joinToString("\n") { "${it.first} | Qty ${it.second} × ${it.third} = ${it.second * it.third}" })
+                                        append(inventoryLines.joinToString("\n") { "${it.itemName} | ${it.quantity} ${it.unit} × ${it.rate} = ${it.amount}" })
                                         if (description.isNotBlank()) append("\n")
                                     }
                                     append(description)
@@ -164,7 +180,7 @@ fun AddTransactionScreen(
                             .testTag("button_save_transaction"),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                        enabled = !isSaving
+                        enabled = !isSaving && inventoryMatchesAmount
                     ) {
                         if (isSaving) {
                             CircularProgressIndicator(color = Color.White, modifier = Modifier.size(22.dp))
@@ -442,37 +458,119 @@ fun AddTransactionScreen(
 
             // Tally Style Inventory / Manual Item Entry
             item {
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Switch(checked = inventoryMode, onCheckedChange = { inventoryMode = it })
                             Spacer(Modifier.width(8.dp))
-                            Column { Text("Item / Inventory Details", fontWeight = FontWeight.Bold); Text("Optional. Use this for tally-style item entries.", fontSize = 11.sp, color = Slate500) }
+                            Column {
+                                Text("Tally Style Inventory", fontWeight = FontWeight.Bold)
+                                Text("Item total must exactly match the amount above before saving.", fontSize = 11.sp, color = Slate500)
+                            }
                         }
+
                         if (inventoryMode) {
-                            OutlinedTextField(value = itemName, onValueChange = { itemName = it }, label = { Text("Item Name") }, modifier = Modifier.fillMaxWidth())
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(value = itemQty, onValueChange = { itemQty = it }, label = { Text("Quantity") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
-                                OutlinedTextField(value = itemPrice, onValueChange = { itemPrice = it }, label = { Text("Price") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                            Text("Item entry", fontWeight = FontWeight.Bold, color = Slate900)
+                            OutlinedTextField(
+                                value = itemName,
+                                onValueChange = { itemName = it },
+                                label = { Text("Item Name") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = itemQty,
+                                    onValueChange = { itemQty = it },
+                                    label = { Text("Quantity") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                ExposedDropdownMenuBox(
+                                    expanded = unitExpanded,
+                                    onExpandedChange = { unitExpanded = !unitExpanded },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    OutlinedTextField(
+                                        value = itemUnit,
+                                        onValueChange = {},
+                                        readOnly = true,
+                                        label = { Text("Unit") },
+                                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(unitExpanded) },
+                                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                                    )
+                                    ExposedDropdownMenu(expanded = unitExpanded, onDismissRequest = { unitExpanded = false }) {
+                                        listOf("Pc", "Kg", "Gram", "Litre", "Ml", "Box", "Pack", "Dozen", "Meter", "Feet", "Bag", "Other").forEach { unit ->
+                                            DropdownMenuItem(text = { Text(unit) }, onClick = { itemUnit = unit; unitExpanded = false })
+                                        }
+                                    }
+                                }
+                                OutlinedTextField(
+                                    value = itemPrice,
+                                    onValueChange = { itemPrice = it },
+                                    label = { Text("Rate") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
                             val lineTotal = (itemQty.toDoubleOrNull() ?: 0.0) * (itemPrice.toDoubleOrNull() ?: 0.0)
-                            Text("Current item total: ${CurrencyFormatter.formatInr(lineTotal)}", fontWeight = FontWeight.Bold)
-                            OutlinedButton(onClick = {
-                                val q = itemQty.toDoubleOrNull() ?: 0.0; val p = itemPrice.toDoubleOrNull() ?: 0.0
-                                if (itemName.isNotBlank() && q > 0 && p >= 0) {
-                                    inventoryLines = inventoryLines + Triple(itemName.trim(), q, p)
-                                    itemName = ""; itemQty = ""; itemPrice = ""
-                                    val total = inventoryLines.sumOf { it.second * it.third }
-                                    amountStr = total.toString()
+                            Text("Line Amount: ${CurrencyFormatter.formatInr(lineTotal)}", fontWeight = FontWeight.Bold)
+                            OutlinedButton(
+                                onClick = {
+                                    val q = itemQty.toDoubleOrNull() ?: 0.0
+                                    val p = itemPrice.toDoubleOrNull() ?: 0.0
+                                    if (itemName.isNotBlank() && q > 0 && p >= 0) {
+                                        inventoryLines = inventoryLines + InventoryLine(itemName.trim(), q, itemUnit, p)
+                                        itemName = ""
+                                        itemQty = ""
+                                        itemPrice = ""
+                                        itemUnit = "Pc"
+                                    } else {
+                                        Toast.makeText(context, "Enter item name, quantity and rate", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Add Item") }
+
+                            if (inventoryLines.isNotEmpty()) {
+                                HorizontalDivider(color = BorderSlate100)
+                                Text("Inventory", fontWeight = FontWeight.Bold)
+                                inventoryLines.forEachIndexed { index, line ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "${line.itemName} | ${line.quantity} ${line.unit} × ${CurrencyFormatter.formatInr(line.rate)} = ${CurrencyFormatter.formatInr(line.amount)}",
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        TextButton(onClick = {
+                                            inventoryLines = inventoryLines.toMutableList().also { it.removeAt(index) }
+                                        }) { Text("Remove") }
+                                    }
                                 }
-                            }, modifier = Modifier.fillMaxWidth()) { Text("Add Item") }
-                            inventoryLines.forEachIndexed { index, line ->
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${line.first}  ${line.second} × ${line.third} = ${CurrencyFormatter.formatInr(line.second * line.third)}", fontSize = 12.sp)
-                                    TextButton(onClick = { inventoryLines = inventoryLines.toMutableList().also { it.removeAt(index) }; amountStr = inventoryLines.sumOf { it.second * it.third }.toString() }) { Text("Remove") }
+                                HorizontalDivider(color = BorderSlate100)
+                                Text("Inventory Total: ${CurrencyFormatter.formatInr(inventoryTotal)}", fontWeight = FontWeight.ExtraBold, color = Indigo600)
+                                val amountText = if (amountStr.isBlank()) "₹0" else CurrencyFormatter.formatInr(enteredAmount)
+                                val matchText = if (inventoryMatchesAmount) "MATCHED ✓" else "MISMATCH ✕"
+                                val matchColor = if (inventoryMatchesAmount) CreditGreen else DebitRed
+                                Text(
+                                    "Entry Amount: $amountText  |  $matchText",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = matchColor
+                                )
+                                if (!inventoryMatchesAmount) {
+                                    Text("Save is locked until Entry Amount = Inventory Total.", fontSize = 12.sp, color = DebitRed)
                                 }
                             }
-                            if (inventoryLines.isNotEmpty()) Text("Inventory Total: ${CurrencyFormatter.formatInr(inventoryLines.sumOf { it.second * it.third })}", fontWeight = FontWeight.ExtraBold, color = Indigo600)
                         }
                     }
                 }

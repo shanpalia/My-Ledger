@@ -1,6 +1,9 @@
 package com.example.ui.screens.settings
 
+import android.net.Uri
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -21,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.data.model.Business
 import com.example.data.model.NotificationSettings
 import com.example.ui.theme.*
@@ -55,6 +60,10 @@ fun SettingsScreen(
     var showEditTemplatesDialog by remember { mutableStateOf(false) }
     var showCreateBizDialog by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
+    var selectedLogoUri by remember { mutableStateOf<Uri?>(null) }
+    val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        selectedLogoUri = uri
+    }
 
     Scaffold(
         topBar = {
@@ -99,18 +108,18 @@ fun SettingsScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = currentProfile?.fullName ?: "Shop Owner",
+                                text = currentProfile?.fullName?.takeIf { it.isNotBlank() } ?: "Owner",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 17.sp,
                                 color = Color.White
                             )
                             Text(
-                                text = currentProfile?.email ?: "owner@ledger.in",
+                                text = currentProfile?.email?.takeIf { it.isNotBlank() } ?: "Email not set",
                                 fontSize = 12.5.sp,
                                 color = Indigo200
                             )
                             Text(
-                                text = "Mobile: ${currentProfile?.mobile ?: "+91 98765 43210"}",
+                                text = "Mobile: ${currentProfile?.mobile?.takeIf { it.isNotBlank() } ?: "Not set"}",
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = Indigo100
@@ -216,7 +225,7 @@ fun SettingsScreen(
                             icon = Icons.Outlined.Storefront,
                             title = "Edit Shop Profile",
                             subtitle = "${activeBiz?.businessName ?: "Shop"} • Address, GST, UPI",
-                            onClick = { showEditProfileDialog = true }
+                            onClick = { selectedLogoUri = null; showEditProfileDialog = true }
                         )
                         HorizontalDivider(color = BorderSlate100)
                         SettingsActionRow(
@@ -367,7 +376,7 @@ fun SettingsScreen(
         var gstNumber by remember { mutableStateOf(biz.gstNumber) }
         var upiId by remember { mutableStateOf(biz.upiId) }
 
-        Dialog(onDismissRequest = { showEditProfileDialog = false }) {
+        Dialog(onDismissRequest = { selectedLogoUri = null; showEditProfileDialog = false }) {
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -379,6 +388,39 @@ fun SettingsScreen(
                 ) {
                     item {
                         Text("Edit Shop Details", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Slate900)
+                    }
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(96.dp)
+                                    .clip(CircleShape)
+                                    .background(Indigo100)
+                                    .clickable { logoPicker.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val preview = selectedLogoUri?.toString() ?: biz.logoUrl
+                                if (preview.isNotBlank()) {
+                                    AsyncImage(
+                                        model = preview,
+                                        contentDescription = "Shop profile image",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Icon(Icons.Outlined.Storefront, contentDescription = null, tint = Indigo600, modifier = Modifier.size(42.dp))
+                                }
+                            }
+                            TextButton(onClick = { logoPicker.launch("image/*") }) {
+                                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(if (biz.logoUrl.isBlank() && selectedLogoUri == null) "Add Shop Image / Logo" else "Change Shop Image / Logo")
+                            }
+                        }
                     }
                     item {
                         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Shop Name *") }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
@@ -412,12 +454,12 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.End
                         ) {
-                            TextButton(onClick = { showEditProfileDialog = false }) { Text("Cancel", color = Slate600) }
+                            TextButton(onClick = { selectedLogoUri = null; showEditProfileDialog = false }) { Text("Cancel", color = Slate600) }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
                                 onClick = {
                                     viewModel.updateBusinessProfile(
-                                        biz.copy(
+                                        business = biz.copy(
                                             businessName = name,
                                             address = address,
                                             city = city,
@@ -427,8 +469,10 @@ fun SettingsScreen(
                                             email = email,
                                             gstNumber = gstNumber,
                                             upiId = upiId
-                                        )
+                                        ),
+                                        newLogoSource = selectedLogoUri?.toString()
                                     )
+                                    selectedLogoUri = null
                                     showEditProfileDialog = false
                                 },
                                 shape = RoundedCornerShape(14.dp),
