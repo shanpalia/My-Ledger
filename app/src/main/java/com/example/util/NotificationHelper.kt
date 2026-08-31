@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.core.content.FileProvider
+import java.io.File
 import com.example.data.model.*
 import java.net.URLEncoder
 
@@ -43,6 +45,50 @@ object NotificationHelper {
             .replace("{shop_name}", shopName)
             .replace("{customer_name}", customerName)
             .replace("{balance}", formattedBalance)
+    }
+
+
+    /** Opens WhatsApp with a PDF attachment and a prefilled reminder message. */
+    fun sharePdfToWhatsApp(context: Context, rawMobile: String, message: String, pdfFile: File): Boolean {
+        return try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                pdfFile
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                setPackage("com.whatsapp")
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_TEXT, message)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                clipData = android.content.ClipData.newRawUri("Ledger PDF", uri)
+            }
+            context.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            try {
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    pdfFile
+                )
+                val fallback = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_TEXT, message)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    clipData = android.content.ClipData.newRawUri("Ledger PDF", uri)
+                }
+                context.startActivity(Intent.createChooser(fallback, "Send reminder with PDF"))
+                true
+            } catch (inner: Exception) {
+                Toast.makeText(context, "Could not share PDF: ${inner.message}", Toast.LENGTH_SHORT).show()
+                false
+            }
+        }
     }
 
     fun openWhatsApp(context: Context, rawMobile: String, message: String): Boolean {

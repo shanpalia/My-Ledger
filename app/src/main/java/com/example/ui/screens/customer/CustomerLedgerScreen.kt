@@ -500,6 +500,45 @@ fun CustomerLedgerScreen(
                         shape = RoundedCornerShape(12.dp)
                     )
 
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = PendingAmberContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("Updated payment status", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Total Debit: ${CurrencyFormatter.formatInr(totalDebit)}", fontSize = 12.sp)
+                            Text("Total Paid / Credit: ${CurrencyFormatter.formatInr(totalCredit)}", fontSize = 12.sp)
+                            Text(
+                                "Remaining Due: ${CurrencyFormatter.formatInr(netBalance)}",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.generateCustomerPdf(customerId) { pdfFile ->
+                                NotificationHelper.sharePdfToWhatsApp(
+                                    context = context,
+                                    rawMobile = customer.mobile,
+                                    message = reminderMsg,
+                                    pdfFile = pdfFile
+                                )
+                            }
+                            showReminderDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = CreditGreen)
+                    ) {
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("WhatsApp + PDF Report", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -510,8 +549,7 @@ fun CustomerLedgerScreen(
                                 showReminderDialog = false
                             },
                             modifier = Modifier.weight(1f),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = CreditGreen)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(14.dp))
                             Spacer(modifier = Modifier.width(4.dp))
@@ -531,15 +569,24 @@ fun CustomerLedgerScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("SMS", fontSize = 12.sp)
                         }
+                    }
 
-                        IconButton(
-                            onClick = {
-                                NotificationHelper.shareTextFallback(context, reminderMsg, "Share Payment Reminder")
-                                showReminderDialog = false
-                            }
-                        ) {
-                            Icon(Icons.Default.Share, contentDescription = "Share")
-                        }
+                    Text(
+                        "App reminder requires the customer My Ledger app and a push-notification backend. WhatsApp and SMS work directly through installed apps.",
+                        fontSize = 10.sp,
+                        color = Slate500
+                    )
+
+                    OutlinedButton(
+                        onClick = {
+                            NotificationHelper.shareTextFallback(context, reminderMsg, "Share Payment Reminder")
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Other Apps", fontSize = 12.sp)
                     }
                 }
             }
