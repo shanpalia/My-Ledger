@@ -45,7 +45,8 @@ fun AddTransactionScreen(
     initialType: TransactionType = TransactionType.DEBIT,
     viewModel: LedgerViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToLedger: (String) -> Unit
+    onNavigateToLedger: (String) -> Unit,
+    onAddNewCustomer: () -> Unit
 ) {
     val context = LocalContext.current
     val activeBiz by viewModel.activeBusiness.collectAsStateWithLifecycle()
@@ -60,6 +61,11 @@ fun AddTransactionScreen(
     var paymentMode by remember { mutableStateOf(PaymentMode.CASH) }
     var referenceNumber by remember { mutableStateOf("") }
     var transactionDate by remember { mutableStateOf(System.currentTimeMillis()) }
+    var inventoryMode by remember { mutableStateOf(false) }
+    var itemName by remember { mutableStateOf("") }
+    var itemQty by remember { mutableStateOf("") }
+    var itemPrice by remember { mutableStateOf("") }
+    var inventoryLines by remember { mutableStateOf(listOf<Triple<String, Double, Double>>()) }
 
     var isCustomerDropdownExpanded by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf(false) }
@@ -130,7 +136,13 @@ fun AddTransactionScreen(
                                 customerId = selectedCustomerId,
                                 type = transactionType,
                                 amount = amt,
-                                description = description,
+                                description = buildString {
+                                    if (inventoryLines.isNotEmpty()) {
+                                        append(inventoryLines.joinToString("\n") { "${it.first} | Qty ${it.second} × ${it.third} = ${it.second * it.third}" })
+                                        if (description.isNotBlank()) append("\n")
+                                    }
+                                    append(description)
+                                },
                                 paymentMode = paymentMode,
                                 referenceNumber = referenceNumber,
                                 transactionDate = transactionDate,
@@ -280,6 +292,11 @@ fun AddTransactionScreen(
                         expanded = isCustomerDropdownExpanded,
                         onDismissRequest = { isCustomerDropdownExpanded = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("＋ Add New Customer", fontWeight = FontWeight.Bold, color = Indigo600) },
+                            onClick = { isCustomerDropdownExpanded = false; onAddNewCustomer() }
+                        )
+                        HorizontalDivider()
                         customers.forEach { cust ->
                             DropdownMenuItem(
                                 text = {
@@ -419,6 +436,44 @@ fun AddTransactionScreen(
                                 selectedLabelColor = Indigo600
                             )
                         )
+                    }
+                }
+            }
+
+            // Tally Style Inventory / Manual Item Entry
+            item {
+                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(checked = inventoryMode, onCheckedChange = { inventoryMode = it })
+                            Spacer(Modifier.width(8.dp))
+                            Column { Text("Item / Inventory Details", fontWeight = FontWeight.Bold); Text("Optional. Use this for tally-style item entries.", fontSize = 11.sp, color = Slate500) }
+                        }
+                        if (inventoryMode) {
+                            OutlinedTextField(value = itemName, onValueChange = { itemName = it }, label = { Text("Item Name") }, modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(value = itemQty, onValueChange = { itemQty = it }, label = { Text("Quantity") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                                OutlinedTextField(value = itemPrice, onValueChange = { itemPrice = it }, label = { Text("Price") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                            }
+                            val lineTotal = (itemQty.toDoubleOrNull() ?: 0.0) * (itemPrice.toDoubleOrNull() ?: 0.0)
+                            Text("Current item total: ${CurrencyFormatter.formatInr(lineTotal)}", fontWeight = FontWeight.Bold)
+                            OutlinedButton(onClick = {
+                                val q = itemQty.toDoubleOrNull() ?: 0.0; val p = itemPrice.toDoubleOrNull() ?: 0.0
+                                if (itemName.isNotBlank() && q > 0 && p >= 0) {
+                                    inventoryLines = inventoryLines + Triple(itemName.trim(), q, p)
+                                    itemName = ""; itemQty = ""; itemPrice = ""
+                                    val total = inventoryLines.sumOf { it.second * it.third }
+                                    amountStr = total.toString()
+                                }
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Add Item") }
+                            inventoryLines.forEachIndexed { index, line ->
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${line.first}  ${line.second} × ${line.third} = ${CurrencyFormatter.formatInr(line.second * line.third)}", fontSize = 12.sp)
+                                    TextButton(onClick = { inventoryLines = inventoryLines.toMutableList().also { it.removeAt(index) }; amountStr = inventoryLines.sumOf { it.second * it.third }.toString() }) { Text("Remove") }
+                                }
+                            }
+                            if (inventoryLines.isNotEmpty()) Text("Inventory Total: ${CurrencyFormatter.formatInr(inventoryLines.sumOf { it.second * it.third })}", fontWeight = FontWeight.ExtraBold, color = Indigo600)
+                        }
                     }
                 }
             }

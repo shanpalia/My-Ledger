@@ -15,7 +15,7 @@ import com.example.data.model.*
         NotificationRecord::class,
         NotificationSettings::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {

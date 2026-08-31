@@ -1,0 +1,7 @@
+{
+  "name": "My Ledger",
+  "description": "Smart Debit & Credit Management app for multi-business ledger, customer accounts, transactions, reports, and dynamic notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

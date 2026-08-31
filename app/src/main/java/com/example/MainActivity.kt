@@ -30,6 +30,7 @@ import com.example.data.model.BalanceType
 import com.example.data.model.TransactionType
 import com.example.ui.components.BusinessSwitcherModal
 import com.example.ui.screens.auth.AuthScreen
+import com.example.ui.screens.auth.BusinessSetupScreen
 import com.example.ui.screens.customer.AddCustomerDialog
 import com.example.ui.screens.customer.CustomerLedgerScreen
 import com.example.ui.screens.customer.CustomersScreen
@@ -40,12 +41,27 @@ import com.example.ui.screens.transaction.AddTransactionScreen
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.LedgerViewModel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector, val outlinedIcon: ImageVector) {
     object Dashboard : Screen("dashboard", "Home", Icons.Filled.Dashboard, Icons.Outlined.Dashboard)
     object Customers : Screen("customers", "Customers", Icons.Filled.People, Icons.Outlined.People)
     object Reports : Screen("reports", "Reports", Icons.Filled.Assessment, Icons.Outlined.Assessment)
     object Settings : Screen("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
+}
+
+
+@Composable
+private fun SplashContent() {
+    Surface(modifier = Modifier.fillMaxSize(), color = Indigo600) {
+        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+            Text("MY LEDGER", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(10.dp))
+            Text("Smart Debit • Credit • Ledger", color = Color.White.copy(alpha = 0.9f), fontSize = 15.sp)
+            Spacer(Modifier.height(30.dp))
+            Text("Developer by shanpalia", color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp)
+        }
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -63,6 +79,9 @@ class MainActivity : ComponentActivity() {
 
                 val businesses by viewModel.businesses.collectAsStateWithLifecycle()
                 val activeBizId by viewModel.activeBusinessId.collectAsStateWithLifecycle()
+
+                var splashVisible by remember { mutableStateOf(true) }
+                LaunchedEffect(Unit) { delay(1400); splashVisible = false }
 
                 var showBusinessSwitcher by remember { mutableStateOf(false) }
                 var showAddCustomerDialog by remember { mutableStateOf(false) }
@@ -82,7 +101,11 @@ class MainActivity : ComponentActivity() {
 
                 val showBottomNav = currentRoute in bottomNavScreens.map { it.route }
 
-                Scaffold(
+                if (splashVisible) {
+                    SplashContent()
+                } else if (businesses.isEmpty()) {
+                    BusinessSetupScreen(viewModel = viewModel, onComplete = { })
+                } else Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     bottomBar = {
                         if (showBottomNav) {
@@ -224,7 +247,8 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToLedger = { custId ->
                                     navController.popBackStack()
                                     navController.navigate("customer_ledger/$custId")
-                                }
+                                },
+                                onAddNewCustomer = { showAddCustomerDialog = true }
                             )
                         }
 

@@ -3,7 +3,6 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.data.local.DataGenerator
 import com.example.data.local.LedgerDatabase
 import com.example.data.model.*
 import com.example.data.repository.CustomerBalanceSummary
@@ -126,18 +125,18 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     val isDarkMode = MutableStateFlow(false)
     val appLanguage = MutableStateFlow("English")
 
+    companion object {
+        private const val LOCAL_OWNER_ID = "local_owner"
+    }
+
     init {
-        viewModelScope.launch {
-            // Seed initial data if empty
-            DataGenerator.populateInitialDataIfEmpty(db)
-            observeData()
-        }
+        observeData()
     }
 
     private fun observeData() {
         viewModelScope.launch {
             currentProfile.collectLatest { profile ->
-                val ownerId = profile?.id ?: DataGenerator.DEFAULT_USER_ID
+                val ownerId = LOCAL_OWNER_ID
                 repository.getBusinessesByOwner(ownerId).collectLatest { bizList ->
                     _businesses.value = bizList
                     if (_activeBusinessId.value == null || bizList.none { it.id == _activeBusinessId.value }) {
@@ -226,7 +225,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         logoUrl: String = ""
     ) {
         viewModelScope.launch {
-            val ownerId = currentProfile.value?.id ?: DataGenerator.DEFAULT_USER_ID
+            val ownerId = LOCAL_OWNER_ID
             val newBiz = Business(
                 id = UUID.randomUUID().toString(),
                 ownerId = ownerId,
