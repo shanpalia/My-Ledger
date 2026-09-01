@@ -561,7 +561,7 @@ fun AddTransactionScreen(
                                         )
                                     }
                                 }
-                            )
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
                                     value = itemQty,
