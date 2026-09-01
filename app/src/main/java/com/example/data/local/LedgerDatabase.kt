@@ -13,9 +13,10 @@ import com.example.data.model.*
         Customer::class,
         LedgerTransaction::class,
         NotificationRecord::class,
-        NotificationSettings::class
+        NotificationSettings::class,
+        InventoryCatalogItem::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class LedgerDatabase : RoomDatabase() {
@@ -25,6 +26,7 @@ abstract class LedgerDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun notificationDao(): NotificationDao
     abstract fun notificationSettingsDao(): NotificationSettingsDao
+    abstract fun inventoryCatalogDao(): InventoryCatalogDao
 
     companion object {
         @Volatile

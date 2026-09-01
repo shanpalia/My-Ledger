@@ -35,6 +35,7 @@ class LedgerRepository(private val db: LedgerDatabase) {
     private val transactionDao = db.transactionDao()
     private val notificationDao = db.notificationDao()
     private val settingsDao = db.notificationSettingsDao()
+    private val inventoryCatalogDao = db.inventoryCatalogDao()
 
     // --- Profile & Auth ---
     fun getProfileFlow(): Flow<UserProfile?> = profileDao.getFirstProfileFlow().flowOn(Dispatchers.IO)
@@ -106,6 +107,20 @@ class LedgerRepository(private val db: LedgerDatabase) {
         transactionDao.deleteTransactionsByCustomer(customerId)
         customerDao.deleteCustomerById(customerId)
     }
+
+
+    // --- Inventory Item Catalog ---
+    fun getInventoryItemsByBusiness(businessId: String): Flow<List<InventoryCatalogItem>> =
+        inventoryCatalogDao.getItemsByBusiness(businessId).flowOn(Dispatchers.IO)
+
+    suspend fun saveInventoryItem(item: InventoryCatalogItem) = withContext(Dispatchers.IO) {
+        val existing = inventoryCatalogDao.getByName(item.businessId, item.name.trim())
+        if (existing == null) inventoryCatalogDao.insert(item)
+        else inventoryCatalogDao.update(existing.copy(unit = item.unit, defaultRate = item.defaultRate, updatedAt = System.currentTimeMillis()))
+    }
+
+    suspend fun updateInventoryItem(item: InventoryCatalogItem) = withContext(Dispatchers.IO) { inventoryCatalogDao.update(item.copy(updatedAt = System.currentTimeMillis())) }
+    suspend fun deleteInventoryItem(item: InventoryCatalogItem) = withContext(Dispatchers.IO) { inventoryCatalogDao.delete(item) }
 
     // --- Transactions & Balance Calculation ---
     fun getTransactionsByBusiness(businessId: String): Flow<List<LedgerTransaction>> =
@@ -193,13 +208,15 @@ class LedgerRepository(private val db: LedgerDatabase) {
     suspend fun insertTransaction(
         tx: LedgerTransaction,
         customer: Customer,
-        business: Business
+        business: Business,
+        createNotification: Boolean = true
     ): NotificationRecord? = withContext(Dispatchers.IO) {
         // 1. Insert transaction safely
         transactionDao.insertTransaction(tx)
 
         // 2. Recalculate balance
         val summary = calculateCustomerBalance(customer.id)
+        if (!createNotification) return@withContext null
 
         // 3. Check notification settings
         val settings = settingsDao.getSettingsDirect(business.id)
@@ -218,7 +235,8 @@ class LedgerRepository(private val db: LedgerDatabase) {
             amount = tx.amount,
             balance = summary.netBalance,
             transactionDate = tx.transactionDate,
-            transactionType = tx.transactionType
+            transactionType = tx.transactionType,
+            inventoryDetails = tx.description
         )
 
         val channel = when {

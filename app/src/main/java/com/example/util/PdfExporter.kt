@@ -19,6 +19,8 @@ import com.example.data.model.Business
 import com.example.data.model.Customer
 import com.example.data.model.LedgerTransaction
 import com.example.data.model.TransactionType
+import com.example.util.InventoryParser
+import java.util.Date
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileInputStream
@@ -233,6 +235,104 @@ object PdfExporter {
             e.printStackTrace()
             null
         }
+    }
+
+
+    fun generateBusinessReportPdf(
+        context: Context,
+        business: Business,
+        transactions: List<LedgerTransaction>,
+        customers: List<Customer>,
+        reportTitle: String,
+        dateLabel: String
+    ): File? {
+        return try {
+            val doc = PdfDocument()
+            val width = 595
+            val height = 842
+            val customerMap = customers.associateBy { it.id }
+            var pageNumber = 0
+            var page: PdfDocument.Page? = null
+            var canvas: Canvas? = null
+            var y = 0f
+            val paint = Paint().apply { isAntiAlias = true }
+
+            fun newPage() {
+                page?.let { doc.finishPage(it) }
+                pageNumber++
+                page = doc.startPage(PdfDocument.PageInfo.Builder(width, height, pageNumber).create())
+                canvas = page!!.canvas
+                y = 0f
+                paint.color = Color.rgb(15,23,42)
+                canvas!!.drawRect(0f,0f,width.toFloat(),92f,paint)
+                paint.color = Color.WHITE; paint.textSize = 20f; paint.typeface = Typeface.DEFAULT_BOLD
+                canvas!!.drawText(business.businessName.ifBlank { "MY LEDGER" },30f,38f,paint)
+                paint.textSize = 10f; paint.typeface = Typeface.DEFAULT
+                canvas!!.drawText(reportTitle,30f,58f,paint)
+                canvas!!.drawText("Period: $dateLabel",30f,75f,paint)
+                y = 110f
+            }
+            fun ensure(space: Float) { if (y + space > height - 55f) newPage() }
+            fun text(txt:String, x:Float, yy:Float, size:Float=10f, color:Int=Color.rgb(30,41,59), bold:Boolean=false) {
+                paint.color=color; paint.textSize=size; paint.typeface=if(bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+                canvas!!.drawText(txt,x,yy,paint)
+            }
+            newPage()
+            // Exact date-wise item summary. Keep each saved line instead of only merging item totals.
+            text("DATE: $dateLabel",30f,y,14f,bold=true); y += 22f
+            text("ITEM SUMMARY (AS ENTERED)",30f,y,12f,bold=true); y += 18f
+            val inventoryTransactions = transactions.filter { InventoryParser.parse(it.description).isNotEmpty() }.sortedBy { it.transactionDate }
+            if (inventoryTransactions.isEmpty()) {
+                text("No inventory items in selected period.",30f,y,10f,Color.rgb(100,116,139)); y += 20f
+            } else {
+                inventoryTransactions.forEach { tx ->
+                    ensure(48f)
+                    val customer = customerMap[tx.customerId]?.name ?: "Customer"
+                    text("${DateUtils.formatDate(tx.transactionDate)} • $customer",30f,y,10f,Color.rgb(71,85,105),true); y += 16f
+                    InventoryParser.parse(tx.description).forEach { line ->
+                        ensure(18f)
+                        text("${line.name} ${line.quantity} ${line.unit} × ${line.rate} = ${CurrencyFormatter.formatInr(line.amount)}",40f,y,10f)
+                        y += 16f
+                    }
+                    ensure(18f)
+                    text("Total = ${CurrencyFormatter.formatInr(tx.amount)}",40f,y,10f,Color.rgb(30,64,175),true); y += 20f
+                }
+            }
+            y += 8f
+            ensure(40f)
+            paint.color=Color.rgb(30,41,59); canvas!!.drawRect(30f,y,width-30f,y+24f,paint)
+            text("Date",40f,y+16f,9f,Color.WHITE,true)
+            text("Customer / Inventory",115f,y+16f,9f,Color.WHITE,true)
+            paint.textAlign=Paint.Align.RIGHT
+            text("Debit",455f,y+16f,9f,Color.WHITE,true); text("Credit",555f,y+16f,9f,Color.WHITE,true)
+            paint.textAlign=Paint.Align.LEFT; y += 24f
+            transactions.sortedBy { it.transactionDate }.forEach { tx ->
+                val customer = customerMap[tx.customerId]?.name ?: "Customer"
+                val lines = InventoryParser.parse(tx.description)
+                val details = if (lines.isEmpty()) listOf(tx.description.ifBlank { tx.paymentMode }) else lines.map { "${it.name} | ${it.quantity} ${it.unit} × ${it.rate} = ${it.amount}" }
+                details.forEachIndexed { idx, detail ->
+                    ensure(24f)
+                    if (idx==0) text(DateUtils.formatDate(tx.transactionDate),40f,y+15f,8.5f)
+                    val label = if(idx==0) "$customer - $detail" else detail
+                    text(if(label.length>52) label.take(50)+"…" else label,115f,y+15f,8.5f)
+                    paint.textAlign=Paint.Align.RIGHT
+                    if (idx==0 && tx.transactionType==TransactionType.DEBIT.name) text(CurrencyFormatter.formatInr(tx.amount),455f,y+15f,8.5f,Color.rgb(220,38,38),true)
+                    if (idx==0 && tx.transactionType==TransactionType.CREDIT.name) text(CurrencyFormatter.formatInr(tx.amount),555f,y+15f,8.5f,Color.rgb(5,150,105),true)
+                    paint.textAlign=Paint.Align.LEFT; y += 22f
+                }
+            }
+            ensure(42f)
+            val debit = transactions.filter { it.transactionType==TransactionType.DEBIT.name }.sumOf { it.amount }
+            val credit = transactions.filter { it.transactionType==TransactionType.CREDIT.name }.sumOf { it.amount }
+            paint.color=Color.rgb(241,245,249); canvas!!.drawRoundRect(30f,y,width-30f,y+44f,6f,6f,paint)
+            text("Total Debit: ${CurrencyFormatter.formatInr(debit)}",45f,y+20f,10f,bold=true)
+            text("Total Credit: ${CurrencyFormatter.formatInr(credit)}",220f,y+20f,10f,bold=true)
+            paint.textAlign=Paint.Align.RIGHT; text("Net: ${CurrencyFormatter.formatInr(debit-credit)}",550f,y+20f,10f,bold=true); paint.textAlign=Paint.Align.LEFT
+            page?.let { doc.finishPage(it) }
+            val dir=File(context.cacheDir,"reports").apply{mkdirs()}
+            val file=File(dir,"MyLedger_Report_${System.currentTimeMillis()}.pdf")
+            FileOutputStream(file).use { doc.writeTo(it) }; doc.close(); file
+        } catch (e: Exception) { e.printStackTrace(); null }
     }
 
     fun sharePdf(context: Context, pdfFile: File) {

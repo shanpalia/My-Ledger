@@ -1,0 +1,9 @@
+MY LEDGER APK UPDATE FEATURE
+
+1. Upload the new APK to your website, GitHub Release, or other public HTTPS hosting.
+2. Update update.json with the new versionCode, versionName, apkUrl, notes and forceUpdate.
+3. Upload the JSON file to a public HTTPS URL.
+4. In the app: Settings > App Updates > Update Server, paste the public JSON URL once.
+5. Users can then tap Check for Updates and Update Now.
+
+The app compares the remote versionCode with the installed APK versionCode.

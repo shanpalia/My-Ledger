@@ -57,6 +57,7 @@ fun AddTransactionScreen(
     val customers by viewModel.customers.collectAsStateWithLifecycle()
     val summaries by viewModel.customerSummaries.collectAsStateWithLifecycle()
     val notifSettings by viewModel.notificationSettings.collectAsStateWithLifecycle()
+    val savedItems by viewModel.inventoryItems.collectAsStateWithLifecycle()
 
     var selectedCustomerId by remember { mutableStateOf(initialCustomerId ?: customers.firstOrNull()?.id ?: "") }
     var transactionType by remember { mutableStateOf(initialType) }
@@ -73,11 +74,15 @@ fun AddTransactionScreen(
     var customUnit by remember { mutableStateOf("") }
     var addingCustomUnit by remember { mutableStateOf(false) }
     var unitExpanded by remember { mutableStateOf(false) }
+    var itemExpanded by remember { mutableStateOf(false) }
     var inventoryLines by remember { mutableStateOf(listOf<InventoryLine>()) }
 
     var isCustomerDropdownExpanded by remember { mutableStateOf(false) }
     var amountError by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+    var sendNotification by remember { mutableStateOf(false) }
+    var notificationChannel by remember { mutableStateOf("WhatsApp") }
+    var notificationChannelExpanded by remember { mutableStateOf(false) }
 
     val baseUnits = listOf("Pc", "Kg", "Gram", "Litre", "Ml", "Box", "Pack", "Dozen", "Meter", "Feet", "Bag")
     val savedCustomUnits = activeBiz?.customUnitsCsv.orEmpty()
@@ -171,12 +176,14 @@ fun AddTransactionScreen(
                                 paymentMode = paymentMode,
                                 referenceNumber = referenceNumber,
                                 transactionDate = transactionDate,
+                                createNotification = sendNotification,
                                 onSuccess = { notifRecord ->
                                     isSaving = false
                                     // If notification enabled, offer quick send
-                                    if (notifRecord != null && selectedCustomer?.mobile?.isNotEmpty() == true) {
-                                        if (notifSettings?.whatsappEnabled == true) {
-                                            NotificationHelper.openWhatsApp(context, selectedCustomer.mobile, notifRecord.message)
+                                    if (sendNotification && notifRecord != null && selectedCustomer?.mobile?.isNotEmpty() == true) {
+                                        when (notificationChannel) {
+                                            "SMS" -> NotificationHelper.openSms(context, selectedCustomer.mobile, notifRecord.message)
+                                            else -> NotificationHelper.openWhatsApp(context, selectedCustomer.mobile, notifRecord.message)
                                         }
                                     }
                                     onNavigateToLedger(selectedCustomerId)
@@ -197,7 +204,7 @@ fun AddTransactionScreen(
                             Icon(Icons.Default.CheckCircle, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Save & Notify Customer",
+                                text = if (sendNotification) "Save & Notify Customer" else "Save Entry",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -215,6 +222,45 @@ fun AddTransactionScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Optional customer notification. Inventory lines are included in the generated message.
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Notify customer after saving", fontWeight = FontWeight.Bold, color = Slate900)
+                                Text("Optional. Inventory items and amount will be included in the message.", fontSize = 11.sp, color = Slate500)
+                            }
+                            Switch(checked = sendNotification, onCheckedChange = { sendNotification = it })
+                        }
+                        if (sendNotification) {
+                            ExposedDropdownMenuBox(
+                                expanded = notificationChannelExpanded,
+                                onExpandedChange = { notificationChannelExpanded = !notificationChannelExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = notificationChannel,
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text("Send via") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(notificationChannelExpanded) },
+                                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                                )
+                                ExposedDropdownMenu(expanded = notificationChannelExpanded, onDismissRequest = { notificationChannelExpanded = false }) {
+                                    listOf("WhatsApp", "SMS").forEach { channel ->
+                                        DropdownMenuItem(text = { Text(channel) }, onClick = { notificationChannel = channel; notificationChannelExpanded = false })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Type Selector Switcher
             item {
                 Card(
@@ -487,11 +533,34 @@ fun AddTransactionScreen(
 
                         if (inventoryMode) {
                             Text("Item entry", fontWeight = FontWeight.Bold, color = Slate900)
-                            OutlinedTextField(
-                                value = itemName,
-                                onValueChange = { itemName = it },
-                                label = { Text("Item Name") },
-                                modifier = Modifier.fillMaxWidth()
+                            ExposedDropdownMenuBox(
+                                expanded = itemExpanded,
+                                onExpandedChange = { itemExpanded = !itemExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = itemName,
+                                    onValueChange = { itemName = it; itemExpanded = true },
+                                    label = { Text("Item Name") },
+                                    placeholder = { Text("Type new item or select saved item") },
+                                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(itemExpanded) },
+                                    modifier = Modifier.menuAnchor().fillMaxWidth()
+                                )
+                                ExposedDropdownMenu(expanded = itemExpanded, onDismissRequest = { itemExpanded = false }) {
+                                    val matches = savedItems.filter { it.name.contains(itemName, ignoreCase = true) }
+                                    if (matches.isEmpty()) {
+                                        DropdownMenuItem(text = { Text("No saved item — type a new item") }, onClick = { itemExpanded = false })
+                                    } else matches.forEach { saved ->
+                                        DropdownMenuItem(
+                                            text = { Column { Text(saved.name); Text("${saved.unit} • ₹${saved.defaultRate}", style = MaterialTheme.typography.labelSmall) } },
+                                            onClick = {
+                                                itemName = saved.name
+                                                itemUnit = saved.unit
+                                                itemPrice = saved.defaultRate.toString()
+                                                itemExpanded = false
+                                            }
+                                        )
+                                    }
+                                }
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                                 OutlinedTextField(
@@ -559,6 +628,8 @@ fun AddTransactionScreen(
                                     val p = itemPrice.toDoubleOrNull() ?: 0.0
                                     if (itemName.isNotBlank() && q > 0 && p >= 0) {
                                         inventoryLines = inventoryLines + InventoryLine(itemName.trim(), q, itemUnit, p)
+                                        // Make a newly typed item available in future entry dropdowns too.
+                                        viewModel.addInventoryItem(itemName.trim(), itemUnit, p)
                                         itemName = ""
                                         itemQty = ""
                                         itemPrice = ""

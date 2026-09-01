@@ -138,3 +138,21 @@ interface NotificationSettingsDao {
     @Update
     suspend fun updateSettings(settings: NotificationSettings)
 }
+
+@Dao
+interface InventoryCatalogDao {
+    @Query("SELECT * FROM inventory_catalog_items WHERE businessId = :businessId ORDER BY name COLLATE NOCASE ASC")
+    fun getItemsByBusiness(businessId: String): Flow<List<InventoryCatalogItem>>
+
+    @Query("SELECT * FROM inventory_catalog_items WHERE businessId = :businessId AND lower(name) = lower(:name) LIMIT 1")
+    suspend fun getByName(businessId: String, name: String): InventoryCatalogItem?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(item: InventoryCatalogItem)
+
+    @Update
+    suspend fun update(item: InventoryCatalogItem)
+
+    @Delete
+    suspend fun delete(item: InventoryCatalogItem)
+}

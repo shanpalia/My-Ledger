@@ -12,6 +12,7 @@ import com.example.util.DateUtils
 import com.example.util.LedgerItemWithBalance
 import com.example.util.NotificationHelper
 import com.example.util.PdfExporter
+import com.example.util.InventoryParser
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.io.File
@@ -67,6 +68,10 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
     // Customer balance summaries
     private val _customerSummaries = MutableStateFlow<Map<String, CustomerBalanceSummary>>(emptyMap())
     val customerSummaries: StateFlow<Map<String, CustomerBalanceSummary>> = _customerSummaries.asStateFlow()
+
+    // Inventory item catalog for active business
+    private val _inventoryItems = MutableStateFlow<List<InventoryCatalogItem>>(emptyList())
+    val inventoryItems: StateFlow<List<InventoryCatalogItem>> = _inventoryItems.asStateFlow()
 
     // Transactions for active business
     private val _transactions = MutableStateFlow<List<LedgerTransaction>>(emptyList())
@@ -150,6 +155,9 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             _activeBusinessId.collectLatest { bizId ->
                 if (bizId != null) {
+                    launch {
+                        repository.getInventoryItemsByBusiness(bizId).collectLatest { items -> _inventoryItems.value = items }
+                    }
                     launch {
                         repository.getCustomersByBusiness(bizId).collectLatest { custList ->
                             _customers.value = custList
@@ -356,6 +364,27 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Inventory Catalog Actions ---
+    fun addInventoryItem(name: String, unit: String, defaultRate: Double) {
+        val bizId = _activeBusinessId.value ?: return
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            repository.saveInventoryItem(InventoryCatalogItem(
+                id = UUID.randomUUID().toString(), businessId = bizId, name = name.trim(),
+                unit = unit.trim().ifBlank { "Pc" }, defaultRate = defaultRate
+            ))
+            _uiEvent.emit("Item saved: ${name.trim()}")
+        }
+    }
+
+    fun updateInventoryItem(item: InventoryCatalogItem) {
+        viewModelScope.launch { repository.updateInventoryItem(item); _uiEvent.emit("Item updated") }
+    }
+
+    fun deleteInventoryItem(item: InventoryCatalogItem) {
+        viewModelScope.launch { repository.deleteInventoryItem(item); _uiEvent.emit("Item deleted") }
+    }
+
     // --- Transaction Preview & Insertion ---
     suspend fun getTransactionPreview(
         customerId: String,
@@ -387,6 +416,7 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
         paymentMode: PaymentMode,
         referenceNumber: String = "",
         transactionDate: Long = System.currentTimeMillis(),
+        createNotification: Boolean = true,
         onSuccess: (NotificationRecord?) -> Unit = {}
     ) {
         val biz = activeBusiness.value ?: return
@@ -406,7 +436,17 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
                 createdBy = currentProfile.value?.fullName ?: "Owner"
             )
 
-            val notif = repository.insertTransaction(tx, customer, biz)
+            // Every item entered in inventory is automatically saved to this shop's item catalog.
+            InventoryParser.parse(description).forEach { line ->
+                repository.saveInventoryItem(InventoryCatalogItem(
+                    id = UUID.randomUUID().toString(),
+                    businessId = biz.id,
+                    name = line.name,
+                    unit = line.unit,
+                    defaultRate = line.rate
+                ))
+            }
+            val notif = repository.insertTransaction(tx, customer, biz, createNotification)
             loadCustomerLedger(customerId)
             _uiEvent.emit("${if (type == TransactionType.DEBIT) "Debit entry" else "Payment entry"} saved successfully!")
             onSuccess(notif)
@@ -466,6 +506,27 @@ class LedgerViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 _uiEvent.emit("Failed to create PDF statement.")
             }
+        }
+    }
+
+    fun generateBusinessReportPdf(
+        reportTransactions: List<LedgerTransaction>,
+        reportCustomers: List<Customer>,
+        reportTitle: String,
+        dateLabel: String,
+        onGenerated: (File) -> Unit
+    ) {
+        val biz = activeBusiness.value ?: return
+        viewModelScope.launch {
+            val pdf = PdfExporter.generateBusinessReportPdf(
+                context = getApplication(),
+                business = biz,
+                transactions = reportTransactions,
+                customers = reportCustomers,
+                reportTitle = reportTitle,
+                dateLabel = dateLabel
+            )
+            if (pdf != null) onGenerated(pdf) else _uiEvent.emit("Failed to create report PDF.")
         }
     }
 

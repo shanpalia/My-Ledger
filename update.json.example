@@ -1,0 +1,7 @@
+{
+  "versionCode": 4,
+  "versionName": "1.3.0",
+  "apkUrl": "https://your-domain.example/My-Ledger-v1.3.0.apk",
+  "notes": "• New feature\n• Bug fixes\n• Performance improvements",
+  "forceUpdate": false
+}

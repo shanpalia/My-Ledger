@@ -38,6 +38,10 @@ import com.example.data.model.NotificationSettings
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.LedgerViewModel
 import com.example.util.NotificationHelper
+import com.example.util.AppUpdateManager
+import com.example.util.UpdateCheckResult
+import com.example.BuildConfig
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,7 +49,8 @@ import java.util.UUID
 fun SettingsScreen(
     viewModel: LedgerViewModel,
     onOpenBusinessSwitcher: () -> Unit,
-    onNavigateToAuth: () -> Unit
+    onNavigateToAuth: () -> Unit,
+    onManageItems: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val currentProfile by viewModel.currentProfile.collectAsStateWithLifecycle()
@@ -61,6 +66,11 @@ fun SettingsScreen(
     var showCreateBizDialog by remember { mutableStateOf(false) }
     var showPinDialog by remember { mutableStateOf(false) }
     var selectedLogoUri by remember { mutableStateOf<Uri?>(null) }
+    val updateScope = rememberCoroutineScope()
+    var showUpdateServerDialog by remember { mutableStateOf(false) }
+    var updateInfoUrl by remember { mutableStateOf(AppUpdateManager.getUpdateInfoUrl(context)) }
+    var updateMessage by remember { mutableStateOf("") }
+    var availableUpdate by remember { mutableStateOf<com.example.util.UpdateInfo?>(null) }
     val logoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         selectedLogoUri = uri
     }
@@ -234,6 +244,43 @@ fun SettingsScreen(
                             subtitle = "Customize Debit, Credit & Reminder message formats",
                             onClick = { showEditTemplatesDialog = true }
                         )
+                        HorizontalDivider(color = BorderSlate100)
+                        SettingsActionRow(
+                            icon = Icons.Outlined.Inventory2,
+                            title = "Items, Price & Unit",
+                            subtitle = "Add, edit or delete saved inventory items",
+                            onClick = onManageItems
+                        )
+                    }
+                }
+            }
+
+            // App update check: owner can configure one remote JSON URL, while every user can check the latest version.
+            item {
+                Text("App Updates", fontSize = 15.sp, color = Slate900, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Current version ${BuildConfig.VERSION_NAME}", fontWeight = FontWeight.Bold, color = Slate900)
+                        Text("Users can manually check whether a newer APK is available.", fontSize = 11.sp, color = Slate500)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { showUpdateServerDialog = true }, modifier = Modifier.weight(1f)) { Text("Update Server") }
+                            Button(onClick = {
+                                updateMessage = "Checking for updates…"
+                                updateScope.launch {
+                                    when (val result = AppUpdateManager.check(context)) {
+                                        UpdateCheckResult.UpToDate -> { updateMessage = "You are already using the latest version."; availableUpdate = null }
+                                        is UpdateCheckResult.Available -> { updateMessage = "New version ${result.info.versionName} is available."; availableUpdate = result.info }
+                                        is UpdateCheckResult.Error -> { updateMessage = result.message; availableUpdate = null }
+                                    }
+                                }
+                            }, modifier = Modifier.weight(1f)) { Text("Check for Updates") }
+                        }
+                        if (updateMessage.isNotBlank()) Text(updateMessage, fontSize = 11.sp, color = Slate600)
+                        availableUpdate?.let { info ->
+                            Text(info.notes.ifBlank { "New improvements are available." }, fontSize = 11.sp, color = Slate600)
+                            Button(onClick = { AppUpdateManager.openUpdate(context, info.apkUrl) }, modifier = Modifier.fillMaxWidth()) { Text("Update Now") }
+                        }
                     }
                 }
             }
@@ -747,7 +794,23 @@ fun SettingsScreen(
             }
         }
     }
+    if (showUpdateServerDialog) {
+        AlertDialog(
+            onDismissRequest = { showUpdateServerDialog = false },
+            title = { Text("Update Server URL") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter the public JSON URL containing versionCode, versionName, apkUrl, notes and forceUpdate.", fontSize = 12.sp)
+                    OutlinedTextField(value = updateInfoUrl, onValueChange = { updateInfoUrl = it }, label = { Text("Update JSON URL") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = { TextButton(onClick = { AppUpdateManager.saveUpdateInfoUrl(context, updateInfoUrl); showUpdateServerDialog = false; updateMessage = "Update server saved." }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { showUpdateServerDialog = false }) { Text("Cancel") } }
+        )
+    }
+
 }
+
 
 @Composable
 fun SettingsActionRow(
@@ -823,4 +886,5 @@ fun SettingsToggleRow(
             )
         )
     }
+
 }

@@ -18,7 +18,8 @@ object NotificationHelper {
         amount: Double,
         balance: Double,
         transactionDate: Long,
-        transactionType: String
+        transactionType: String,
+        inventoryDetails: String = ""
     ): String {
         val formattedAmount = CurrencyFormatter.formatInr(amount, includeSymbol = false)
         val formattedBalance = CurrencyFormatter.formatInr(balance, includeSymbol = false)
@@ -31,7 +32,10 @@ object NotificationHelper {
             .replace("{amount}", formattedAmount)
             .replace("{balance}", formattedBalance)
             .replace("{transaction_date}", formattedDate)
-            .replace("{transaction_type}", typeLabel)
+.replace("{transaction_type}", typeLabel)
+            .let { base ->
+                if (inventoryDetails.isBlank()) base else "$base\n\nItems / Inventory:\n$inventoryDetails"
+            }
     }
 
     fun buildReminderMessage(

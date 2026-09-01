@@ -145,7 +145,7 @@ fun DashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "Total Outstanding",
+                            text = "Total Udhari Pending",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = Indigo100.copy(alpha = 0.85f)
@@ -158,6 +158,12 @@ fun DashboardScreen(
                             letterSpacing = (-1).sp,
                             color = Color.White,
                             modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        Text(
+                            text = "Customer dues pending: ${customerSummaries.values.count { it.netBalance > 0 }} customers",
+                            fontSize = 11.sp,
+                            color = Indigo100,
+                            modifier = Modifier.padding(bottom = 8.dp)
                         )
 
                         // Divider & Split Sub-metrics

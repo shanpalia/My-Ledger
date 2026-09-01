@@ -41,6 +41,7 @@ import com.example.ui.screens.customer.CustomerLedgerScreen
 import com.example.ui.screens.customer.CustomersScreen
 import com.example.ui.screens.dashboard.DashboardScreen
 import com.example.ui.screens.reports.ReportsScreen
+import com.example.ui.screens.inventory.InventoryItemsScreen
 import com.example.ui.screens.settings.SettingsScreen
 import com.example.ui.screens.transaction.AddTransactionScreen
 import com.example.ui.theme.*
@@ -67,7 +68,7 @@ private fun SplashContent() {
             Image(
                 painter = painterResource(com.example.R.drawable.my_ledger_exact_user_icon),
                 contentDescription = "My Ledger",
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.size(128.dp).clip(RoundedCornerShape(28.dp))
             )
             Spacer(Modifier.height(18.dp))
@@ -283,11 +284,17 @@ class MainActivity : ComponentActivity() {
                             SettingsScreen(
                                 viewModel = viewModel,
                                 onOpenBusinessSwitcher = { showBusinessSwitcher = true },
-                                onNavigateToAuth = { navController.navigate("auth") }
+                                onNavigateToAuth = { navController.navigate("auth") },
+                                onManageItems = { navController.navigate("inventory_items") }
                             )
                         }
 
-                        // 7. Auth
+                        // 7. Inventory item catalog
+                        composable("inventory_items") {
+                            InventoryItemsScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                        }
+
+                        // 8. Auth
                         composable("auth") {
                             AuthScreen(
                                 viewModel = viewModel,
