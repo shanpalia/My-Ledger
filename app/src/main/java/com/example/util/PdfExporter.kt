@@ -46,197 +46,89 @@ object PdfExporter {
         netBalance: Double
     ): File? {
         return try {
-            val pdfDocument = PdfDocument()
-            val pageWidth = 595 // A4 standard point width
-            val pageHeight = 842 // A4 standard point height
-            val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, 1).create()
-            val page = pdfDocument.startPage(pageInfo)
-            val canvas = page.canvas
-
+            val doc = PdfDocument()
+            val width = 595
+            val height = 842
+            var pageNumber = 0
+            var page: PdfDocument.Page? = null
+            var canvas: Canvas? = null
+            var y = 0f
             val paint = Paint().apply { isAntiAlias = true }
 
-            // Header Background Accent
-            paint.color = Color.rgb(15, 23, 42) // Deep Slate
-            canvas.drawRect(0f, 0f, pageWidth.toFloat(), 95f, paint)
-
-            // Shop Name
-            paint.color = Color.WHITE
-            paint.textSize = 20f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText(business.businessName.ifEmpty { "My Ledger" }, 30f, 40f, paint)
-
-            // Shop Address & Mobile
-            paint.textSize = 10f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            val addressText = listOfNotNull(
-                business.address.takeIf { it.isNotEmpty() },
-                business.city.takeIf { it.isNotEmpty() },
-                business.state.takeIf { it.isNotEmpty() },
-                business.pinCode.takeIf { it.isNotEmpty() }
-            ).joinToString(", ")
-            if (addressText.isNotEmpty()) {
-                canvas.drawText(addressText, 30f, 58f, paint)
-            }
-            val contactInfo = listOfNotNull(
-                business.mobile.takeIf { it.isNotEmpty() }?.let { "Mobile: $it" },
-                business.gstNumber.takeIf { it.isNotEmpty() }?.let { "GST: $it" },
-                business.upiId.takeIf { it.isNotEmpty() }?.let { "UPI: $it" }
-            ).joinToString(" | ")
-            canvas.drawText(contactInfo.ifEmpty { "Smart Business Ledger Statement" }, 30f, 74f, paint)
-
-            // Title badge on top right
-            paint.color = Color.rgb(30, 64, 175)
-            canvas.drawRoundRect(pageWidth - 170f, 25f, pageWidth - 30f, 65f, 8f, 8f, paint)
-            paint.color = Color.WHITE
-            paint.textSize = 12f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("ACCOUNT STATEMENT", pageWidth - 160f, 48f, paint)
-
-            var currentY = 125f
-
-            // Customer Details Card
-            paint.color = Color.rgb(241, 245, 249) // Light grey background
-            canvas.drawRoundRect(30f, currentY, pageWidth - 30f, currentY + 65f, 6f, 6f, paint)
-
-            paint.color = Color.rgb(15, 23, 42)
-            paint.textSize = 13f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("Customer: ${customer.name}", 45f, currentY + 24f, paint)
-
-            paint.textSize = 10f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            canvas.drawText("Mobile: ${customer.mobile}", 45f, currentY + 42f, paint)
-            if (customer.address.isNotEmpty()) {
-                canvas.drawText("Address: ${customer.address}", 45f, currentY + 56f, paint)
-            }
-
-            // Statement Date
-            paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("Date: ${DateUtils.formatDate(System.currentTimeMillis())}", pageWidth - 45f, currentY + 24f, paint)
-            val balanceLabel = if (netBalance >= 0) "Net Due (Debit)" else "Advance (Credit)"
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            paint.color = if (netBalance >= 0) Color.rgb(220, 38, 38) else Color.rgb(5, 150, 105)
-            canvas.drawText("$balanceLabel: ${CurrencyFormatter.formatInr(netBalance)}", pageWidth - 45f, currentY + 48f, paint)
-            paint.textAlign = Paint.Align.LEFT
-
-            currentY += 85f
-
-            // Table Header
-            paint.color = Color.rgb(30, 41, 59)
-            canvas.drawRect(30f, currentY, pageWidth - 30f, currentY + 24f, paint)
-
-            paint.color = Color.WHITE
-            paint.textSize = 10f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("Date", 40f, currentY + 16f, paint)
-            canvas.drawText("Description / Mode", 120f, currentY + 16f, paint)
-            paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("Debit (₹)", 370f, currentY + 16f, paint)
-            canvas.drawText("Credit (₹)", 460f, currentY + 16f, paint)
-            canvas.drawText("Balance (₹)", pageWidth - 40f, currentY + 16f, paint)
-            paint.textAlign = Paint.Align.LEFT
-
-            currentY += 24f
-
-            // Table Rows
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            val rowHeight = 22f
-
-            items.take(24).forEachIndexed { index, item ->
-                if (index % 2 == 0) {
-                    paint.color = Color.rgb(248, 250, 252)
-                    canvas.drawRect(30f, currentY, pageWidth - 30f, currentY + rowHeight, paint)
-                }
-
-                // Date
-                paint.color = Color.rgb(51, 65, 85)
-                paint.textSize = 9f
-                canvas.drawText(DateUtils.formatDate(item.transaction.transactionDate), 40f, currentY + 15f, paint)
-
-                // Description
-                val desc = item.transaction.description.ifEmpty {
-                    if (item.transaction.transactionType == TransactionType.DEBIT.name) "Debit Entry" else "Payment Received (${item.transaction.paymentMode})"
-                }
-                val trimmedDesc = if (desc.length > 32) desc.substring(0, 30) + "..." else desc
-                canvas.drawText(trimmedDesc, 120f, currentY + 15f, paint)
-
-                paint.textAlign = Paint.Align.RIGHT
-
-                // Debit
-                if (item.debitAmount > 0) {
-                    paint.color = Color.rgb(220, 38, 38)
-                    canvas.drawText(CurrencyFormatter.formatInr(item.debitAmount, includeSymbol = false), 370f, currentY + 15f, paint)
-                } else {
-                    paint.color = Color.rgb(148, 163, 184)
-                    canvas.drawText("-", 370f, currentY + 15f, paint)
-                }
-
-                // Credit
-                if (item.creditAmount > 0) {
-                    paint.color = Color.rgb(5, 150, 105)
-                    canvas.drawText(CurrencyFormatter.formatInr(item.creditAmount, includeSymbol = false), 460f, currentY + 15f, paint)
-                } else {
-                    paint.color = Color.rgb(148, 163, 184)
-                    canvas.drawText("-", 460f, currentY + 15f, paint)
-                }
-
-                // Balance
-                paint.color = Color.rgb(15, 23, 42)
-                canvas.drawText(CurrencyFormatter.formatInr(item.runningBalance, includeSymbol = false), pageWidth - 40f, currentY + 15f, paint)
-
+            fun text(value: String, x: Float, yy: Float, size: Float = 10f, color: Int = Color.rgb(30, 41, 59), bold: Boolean = false) {
+                paint.color = color
+                paint.textSize = size
+                paint.typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
                 paint.textAlign = Paint.Align.LEFT
-                currentY += rowHeight
+                canvas!!.drawText(value, x, yy, paint)
+            }
+            fun newPage() {
+                page?.let { doc.finishPage(it) }
+                pageNumber++
+                page = doc.startPage(PdfDocument.PageInfo.Builder(width, height, pageNumber).create())
+                canvas = page!!.canvas
+                paint.color = Color.rgb(15, 23, 42)
+                canvas!!.drawRect(0f, 0f, width.toFloat(), 92f, paint)
+                text(business.businessName.ifBlank { "MY LEDGER" }, 30f, 38f, 20f, Color.WHITE, true)
+                text("ACCOUNT STATEMENT • ITEM-WISE REPORT", 30f, 60f, 10f, Color.WHITE, true)
+                text("Customer: ${customer.name}", 30f, 78f, 10f, Color.WHITE)
+                y = 112f
+            }
+            fun ensure(space: Float) { if (y + space > height - 55f) newPage() }
+
+            newPage()
+            text("CUSTOMER: ${customer.name}", 30f, y, 14f, bold = true); y += 20f
+            text("Mobile: ${customer.mobile.ifBlank { "-" }}", 30f, y, 10f); y += 18f
+            text("FINAL BALANCE: ${CurrencyFormatter.formatInr(netBalance)}", 30f, y, 12f, if (netBalance >= 0) Color.rgb(220,38,38) else Color.rgb(5,150,105), true); y += 26f
+
+            val inventoryItems = items.filter { InventoryParser.parse(it.transaction.description).isNotEmpty() }
+            text("ITEM-WISE ENTRIES (AS ENTERED)", 30f, y, 13f, Color.rgb(30,64,175), true); y += 20f
+            if (inventoryItems.isEmpty()) {
+                text("No inventory items found.", 30f, y, 10f, Color.rgb(100,116,139)); y += 20f
+            } else {
+                inventoryItems.sortedBy { it.transaction.transactionDate }.forEach { entry ->
+                    ensure(34f)
+                    text("${DateUtils.formatDate(entry.transaction.transactionDate)}", 30f, y, 10f, Color.rgb(71,85,105), true); y += 16f
+                    InventoryParser.parse(entry.transaction.description).forEach { line ->
+                        ensure(18f)
+                        text("${line.name} ${line.quantity} ${line.unit} × ${line.rate} = ${CurrencyFormatter.formatInr(line.amount)}", 42f, y, 10f)
+                        y += 16f
+                    }
+                    ensure(18f)
+                    text("Total = ${CurrencyFormatter.formatInr(entry.transaction.amount)}", 42f, y, 10f, Color.rgb(30,64,175), true)
+                    y += 22f
+                }
             }
 
-            // Summary Bottom Card
-            currentY += 15f
-            paint.color = Color.rgb(241, 245, 249)
-            canvas.drawRoundRect(30f, currentY, pageWidth - 30f, currentY + 50f, 6f, 6f, paint)
+            ensure(34f)
+            text("TRANSACTION SUMMARY", 30f, y, 13f, Color.rgb(30,64,175), true); y += 20f
+            items.sortedBy { it.transaction.transactionDate }.forEach { entry ->
+                ensure(20f)
+                val tx = entry.transaction
+                val kind = if (tx.transactionType == TransactionType.DEBIT.name) "Debit" else "Credit"
+                text("${DateUtils.formatDate(tx.transactionDate)} • $kind • ${CurrencyFormatter.formatInr(tx.amount)} • Balance ${CurrencyFormatter.formatInr(entry.runningBalance)}", 30f, y, 9.5f)
+                y += 17f
+            }
 
-            paint.color = Color.rgb(15, 23, 42)
-            paint.textSize = 10f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            canvas.drawText("Total Debit: ${CurrencyFormatter.formatInr(totalDebit)}", 45f, currentY + 22f, paint)
-            canvas.drawText("Total Credit: ${CurrencyFormatter.formatInr(totalCredit)}", 220f, currentY + 22f, paint)
-            paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("Final Balance: ${CurrencyFormatter.formatInr(netBalance)}", pageWidth - 45f, currentY + 22f, paint)
-            paint.textAlign = Paint.Align.LEFT
+            ensure(46f)
+            paint.color = Color.rgb(241,245,249)
+            canvas!!.drawRoundRect(30f, y, width - 30f, y + 44f, 6f, 6f, paint)
+            text("Total Debit: ${CurrencyFormatter.formatInr(totalDebit)}", 45f, y + 20f, 10f, bold = true)
+            text("Total Credit: ${CurrencyFormatter.formatInr(totalCredit)}", 220f, y + 20f, 10f, bold = true)
+            text("Final Balance: ${CurrencyFormatter.formatInr(netBalance)}", 385f, y + 20f, 10f, bold = true)
 
-            paint.textSize = 8.5f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
-            paint.color = Color.rgb(100, 116, 139)
-            canvas.drawText("Please verify all transactions. Contact shop for discrepancies.", 45f, currentY + 40f, paint)
-
-            // Footer
-            paint.color = Color.rgb(148, 163, 184)
-            paint.strokeWidth = 0.8f
-            canvas.drawLine(30f, pageHeight - 45f, pageWidth - 30f, pageHeight - 45f, paint)
-
-            paint.textSize = 9f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            paint.color = Color.rgb(100, 116, 139)
-            canvas.drawText("Generated by My Ledger • Smart Debit & Credit Management", 30f, pageHeight - 30f, paint)
-
-            paint.textAlign = Paint.Align.RIGHT
-            canvas.drawText("Page 1 of 1", pageWidth - 30f, pageHeight - 30f, paint)
-
-            pdfDocument.finishPage(page)
-
+            page?.let { doc.finishPage(it) }
             val dir = File(context.cacheDir, "ledgers").apply { mkdirs() }
             val sanitizedName = customer.name.replace(Regex("[^a-zA-Z0-9]"), "_")
             val file = File(dir, "Ledger_${sanitizedName}_${System.currentTimeMillis()}.pdf")
-            val outputStream = FileOutputStream(file)
-            pdfDocument.writeTo(outputStream)
-            outputStream.close()
-            pdfDocument.close()
-
+            FileOutputStream(file).use { doc.writeTo(it) }
+            doc.close()
             file
         } catch (e: Exception) {
             e.printStackTrace()
             null
         }
     }
-
 
     fun generateBusinessReportPdf(
         context: Context,
@@ -251,6 +143,8 @@ object PdfExporter {
             val width = 595
             val height = 842
             val customerMap = customers.associateBy { it.id }
+            val sorted = transactions.sortedBy { it.transactionDate }
+            var runningBalance = 0.0
             var pageNumber = 0
             var page: PdfDocument.Page? = null
             var canvas: Canvas? = null
@@ -263,75 +157,121 @@ object PdfExporter {
                 page = doc.startPage(PdfDocument.PageInfo.Builder(width, height, pageNumber).create())
                 canvas = page!!.canvas
                 y = 0f
-                paint.color = Color.rgb(15,23,42)
-                canvas!!.drawRect(0f,0f,width.toFloat(),92f,paint)
-                paint.color = Color.WHITE; paint.textSize = 20f; paint.typeface = Typeface.DEFAULT_BOLD
-                canvas!!.drawText(business.businessName.ifBlank { "MY LEDGER" },30f,38f,paint)
-                paint.textSize = 10f; paint.typeface = Typeface.DEFAULT
-                canvas!!.drawText(reportTitle,30f,58f,paint)
-                canvas!!.drawText("Period: $dateLabel",30f,75f,paint)
-                y = 110f
+                paint.color = Color.rgb(15, 23, 42)
+                canvas!!.drawRect(0f, 0f, width.toFloat(), 112f, paint)
+                paint.color = Color.WHITE; paint.textSize = 22f; paint.typeface = Typeface.DEFAULT_BOLD
+                canvas!!.drawText(business.businessName.ifBlank { "MY LEDGER" }, 30f, 38f, paint)
+                paint.textSize = 11f; paint.typeface = Typeface.DEFAULT
+                val address = business.address.ifBlank { business.city }.ifBlank { "Business Ledger" }
+                canvas!!.drawText(address.take(90), 30f, 58f, paint)
+                val contact = listOfNotNull(
+                    business.mobile.takeIf { it.isNotBlank() }?.let { "Mobile: $it" },
+                    business.email.takeIf { it.isNotBlank() }
+                ).joinToString("   •   ")
+                if (contact.isNotBlank()) canvas!!.drawText(contact.take(90), 30f, 76f, paint)
+                paint.textSize = 11f; paint.typeface = Typeface.DEFAULT_BOLD
+                paint.textAlign = Paint.Align.RIGHT
+                canvas!!.drawText(reportTitle, width - 30f, 42f, paint)
+                paint.textSize = 9.5f; paint.typeface = Typeface.DEFAULT
+                canvas!!.drawText("Period: $dateLabel", width - 30f, 64f, paint)
+                paint.textAlign = Paint.Align.LEFT
+                y = 132f
             }
-            fun ensure(space: Float) { if (y + space > height - 55f) newPage() }
-            fun text(txt:String, x:Float, yy:Float, size:Float=10f, color:Int=Color.rgb(30,41,59), bold:Boolean=false) {
-                paint.color=color; paint.textSize=size; paint.typeface=if(bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-                canvas!!.drawText(txt,x,yy,paint)
+            fun ensure(space: Float) { if (y + space > height - 58f) newPage() }
+            fun text(txt: String, x: Float, yy: Float, size: Float = 10f, color: Int = Color.rgb(30,41,59), bold: Boolean = false) {
+                paint.color = color; paint.textSize = size; paint.typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+                canvas!!.drawText(txt, x, yy, paint)
             }
+            fun amountLabel(value: Double): String = CurrencyFormatter.formatInr(kotlin.math.abs(value))
+            fun balanceLabel(value: Double): String = when {
+                value > 0.0001 -> "${amountLabel(value)} DR"
+                value < -0.0001 -> "${amountLabel(value)} CR"
+                else -> "₹0"
+            }
+            fun paymentLabel(tx: LedgerTransaction): String {
+                val base = if (tx.transactionType == TransactionType.CREDIT.name) "Received Payment" else "Debit Entry"
+                val mode = tx.paymentMode.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
+                val desc = tx.description.trim().takeIf { it.isNotBlank() && InventoryParser.parse(it).isEmpty() }
+                return if (desc != null) "$base$mode — $desc" else "$base$mode"
+            }
+
             newPage()
-            // Exact date-wise item summary. Keep each saved line instead of only merging item totals.
-            text("DATE: $dateLabel",30f,y,14f,bold=true); y += 22f
-            text("ITEM SUMMARY (AS ENTERED)",30f,y,12f,bold=true); y += 18f
-            val inventoryTransactions = transactions.filter { InventoryParser.parse(it.description).isNotEmpty() }.sortedBy { it.transactionDate }
-            if (inventoryTransactions.isEmpty()) {
-                text("No inventory items in selected period.",30f,y,10f,Color.rgb(100,116,139)); y += 20f
+            text("DATE-WISE ITEM & PAYMENT REPORT", 30f, y, 15f, bold = true); y += 28f
+
+            if (sorted.isEmpty()) {
+                text("No transactions for the selected period.", 30f, y, 11f, Color.rgb(100,116,139)); y += 24f
             } else {
-                inventoryTransactions.forEach { tx ->
-                    ensure(48f)
-                    val customer = customerMap[tx.customerId]?.name ?: "Customer"
-                    text("${DateUtils.formatDate(tx.transactionDate)} • $customer",30f,y,10f,Color.rgb(71,85,105),true); y += 16f
-                    InventoryParser.parse(tx.description).forEach { line ->
-                        ensure(18f)
-                        text("${line.name} ${line.quantity} ${line.unit} × ${line.rate} = ${CurrencyFormatter.formatInr(line.amount)}",40f,y,10f)
-                        y += 16f
+                val grouped = sorted.groupBy { DateUtils.formatDate(it.transactionDate) }
+                grouped.forEach { (date, dayTransactions) ->
+                    ensure(44f)
+                    paint.color = Color.rgb(30,41,59)
+                    canvas!!.drawRoundRect(30f, y, width - 30f, y + 30f, 6f, 6f, paint)
+                    text(date, 42f, y + 20f, 12f, Color.WHITE, true)
+                    paint.textAlign = Paint.Align.RIGHT
+                    text("Opening: ${balanceLabel(runningBalance)}", width - 42f, y + 20f, 10f, Color.WHITE, true)
+                    paint.textAlign = Paint.Align.LEFT
+                    y += 42f
+
+                    dayTransactions.forEach { tx ->
+                        val customer = customerMap[tx.customerId]?.name ?: "Customer"
+                        val inventory = InventoryParser.parse(tx.description)
+                        ensure(if (inventory.isNotEmpty()) 28f + inventory.size * 18f else 42f)
+                        text(customer, 38f, y, 10.5f, Color.rgb(51,65,85), true); y += 16f
+                        if (inventory.isNotEmpty()) {
+                            inventory.forEach { line ->
+                                ensure(18f)
+                                text("${line.name} ${line.quantity} ${line.unit} × ${line.rate} = ${CurrencyFormatter.formatInr(line.amount)}", 50f, y, 10.5f)
+                                y += 16f
+                            }
+                            runningBalance += tx.amount
+                            paint.textAlign = Paint.Align.RIGHT
+                            text("= ${CurrencyFormatter.formatInr(tx.amount)}", width - 42f, y - 2f, 10.5f, Color.rgb(30,64,175), true)
+                            paint.textAlign = Paint.Align.LEFT
+                        } else {
+                            text(paymentLabel(tx), 50f, y, 10.5f, if (tx.transactionType == TransactionType.CREDIT.name) Color.rgb(5,150,105) else Color.rgb(220,38,38), true)
+                            y += 16f
+                            if (tx.transactionType == TransactionType.CREDIT.name) runningBalance -= tx.amount else runningBalance += tx.amount
+                            paint.textAlign = Paint.Align.RIGHT
+                            text("= ${CurrencyFormatter.formatInr(tx.amount)}", width - 42f, y - 2f, 10.5f, if (tx.transactionType == TransactionType.CREDIT.name) Color.rgb(5,150,105) else Color.rgb(220,38,38), true)
+                            paint.textAlign = Paint.Align.LEFT
+                        }
+                        ensure(20f)
+                        text("Running Balance", 50f, y + 8f, 9.5f, Color.rgb(100,116,139))
+                        paint.textAlign = Paint.Align.RIGHT
+                        text(balanceLabel(runningBalance), width - 42f, y + 8f, 10f, Color.rgb(30,41,59), true)
+                        paint.textAlign = Paint.Align.LEFT
+                        y += 24f
                     }
-                    ensure(18f)
-                    text("Total = ${CurrencyFormatter.formatInr(tx.amount)}",40f,y,10f,Color.rgb(30,64,175),true); y += 20f
+                    y += 8f
                 }
             }
-            y += 8f
-            ensure(40f)
-            paint.color=Color.rgb(30,41,59); canvas!!.drawRect(30f,y,width-30f,y+24f,paint)
-            text("Date",40f,y+16f,9f,Color.WHITE,true)
-            text("Customer / Inventory",115f,y+16f,9f,Color.WHITE,true)
-            paint.textAlign=Paint.Align.RIGHT
-            text("Debit",455f,y+16f,9f,Color.WHITE,true); text("Credit",555f,y+16f,9f,Color.WHITE,true)
-            paint.textAlign=Paint.Align.LEFT; y += 24f
-            transactions.sortedBy { it.transactionDate }.forEach { tx ->
-                val customer = customerMap[tx.customerId]?.name ?: "Customer"
-                val lines = InventoryParser.parse(tx.description)
-                val details = if (lines.isEmpty()) listOf(tx.description.ifBlank { tx.paymentMode }) else lines.map { "${it.name} | ${it.quantity} ${it.unit} × ${it.rate} = ${it.amount}" }
-                details.forEachIndexed { idx, detail ->
-                    ensure(24f)
-                    if (idx==0) text(DateUtils.formatDate(tx.transactionDate),40f,y+15f,8.5f)
-                    val label = if(idx==0) "$customer - $detail" else detail
-                    text(if(label.length>52) label.take(50)+"…" else label,115f,y+15f,8.5f)
-                    paint.textAlign=Paint.Align.RIGHT
-                    if (idx==0 && tx.transactionType==TransactionType.DEBIT.name) text(CurrencyFormatter.formatInr(tx.amount),455f,y+15f,8.5f,Color.rgb(220,38,38),true)
-                    if (idx==0 && tx.transactionType==TransactionType.CREDIT.name) text(CurrencyFormatter.formatInr(tx.amount),555f,y+15f,8.5f,Color.rgb(5,150,105),true)
-                    paint.textAlign=Paint.Align.LEFT; y += 22f
-                }
-            }
-            ensure(42f)
-            val debit = transactions.filter { it.transactionType==TransactionType.DEBIT.name }.sumOf { it.amount }
-            val credit = transactions.filter { it.transactionType==TransactionType.CREDIT.name }.sumOf { it.amount }
-            paint.color=Color.rgb(241,245,249); canvas!!.drawRoundRect(30f,y,width-30f,y+44f,6f,6f,paint)
-            text("Total Debit: ${CurrencyFormatter.formatInr(debit)}",45f,y+20f,10f,bold=true)
-            text("Total Credit: ${CurrencyFormatter.formatInr(credit)}",220f,y+20f,10f,bold=true)
-            paint.textAlign=Paint.Align.RIGHT; text("Net: ${CurrencyFormatter.formatInr(debit-credit)}",550f,y+20f,10f,bold=true); paint.textAlign=Paint.Align.LEFT
+
+            ensure(64f)
+            val totalDebit = sorted.filter { it.transactionType == TransactionType.DEBIT.name }.sumOf { it.amount }
+            val totalCredit = sorted.filter { it.transactionType == TransactionType.CREDIT.name }.sumOf { it.amount }
+            paint.color = Color.rgb(241,245,249)
+            canvas!!.drawRoundRect(30f, y, width - 30f, y + 58f, 8f, 8f, paint)
+            text("Total Debit: ${CurrencyFormatter.formatInr(totalDebit)}", 45f, y + 22f, 10.5f, bold = true)
+            text("Total Credit: ${CurrencyFormatter.formatInr(totalCredit)}", 45f, y + 42f, 10.5f, bold = true)
+            paint.textAlign = Paint.Align.RIGHT
+            text("FINAL BALANCE", width - 45f, y + 22f, 10f, Color.rgb(71,85,105), true)
+            text(balanceLabel(runningBalance), width - 45f, y + 43f, 16f, if (runningBalance >= 0) Color.rgb(185,28,28) else Color.rgb(5,150,105), true)
+            paint.textAlign = Paint.Align.LEFT
+
+            val footerY = height - 28f
+            paint.color = Color.rgb(148,163,184); paint.strokeWidth = 0.7f
+            canvas!!.drawLine(30f, footerY - 10f, width - 30f, footerY - 10f, paint)
+            text("Generated by My Ledger • Date-wise Item & Payment Statement", 30f, footerY, 8.5f, Color.rgb(100,116,139))
+            paint.textAlign = Paint.Align.RIGHT
+            text("Page $pageNumber", width - 30f, footerY, 8.5f, Color.rgb(100,116,139))
+            paint.textAlign = Paint.Align.LEFT
+
             page?.let { doc.finishPage(it) }
-            val dir=File(context.cacheDir,"reports").apply{mkdirs()}
-            val file=File(dir,"MyLedger_Report_${System.currentTimeMillis()}.pdf")
-            FileOutputStream(file).use { doc.writeTo(it) }; doc.close(); file
+            val dir = File(context.cacheDir, "reports").apply { mkdirs() }
+            val file = File(dir, "MyLedger_Professional_Report_${System.currentTimeMillis()}.pdf")
+            FileOutputStream(file).use { doc.writeTo(it) }
+            doc.close()
+            file
         } catch (e: Exception) { e.printStackTrace(); null }
     }
 

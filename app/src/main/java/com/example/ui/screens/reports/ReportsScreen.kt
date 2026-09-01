@@ -149,18 +149,43 @@ fun ReportsScreen(viewModel: LedgerViewModel, onNavigateToCustomerLedger: (Strin
             item {
                 Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("ITEM SUMMARY (AS ENTERED)", fontWeight = FontWeight.Bold, color = Slate900)
-                        Text("Each item is shown exactly like the saved entry: Item Quantity Unit × Rate = Amount.", fontSize = 11.sp, color = Slate500)
-                        val inventoryTx = filtered.filter { InventoryParser.parse(it.description).isNotEmpty() }.sortedBy { it.transactionDate }
-                        if (inventoryTx.isEmpty()) Text("No inventory items for this selection.", color = Slate500, fontSize = 12.sp)
-                        inventoryTx.forEach { tx ->
-                            Text("${DateUtils.formatDate(tx.transactionDate)} • ${customers.find { it.id == tx.customerId }?.name ?: "Customer"}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Slate600)
-                            InventoryParser.parse(tx.description).forEach { line ->
-                                Text("${line.name} ${line.quantity} ${line.unit} × ${line.rate} = ${CurrencyFormatter.formatInr(line.amount)}", fontSize = 13.sp, color = Slate900)
+                        Text("DATE-WISE ITEM & PAYMENT REPORT", fontWeight = FontWeight.Bold, color = Slate900)
+                        Text("Items are shown exactly as entered. Payments reduce the running balance.", fontSize = 11.sp, color = Slate500)
+                        var runningBalance = 0.0
+                        val chronological = filtered.sortedBy { it.transactionDate }
+                        if (chronological.isEmpty()) {
+                            Text("No transactions for this selection.", color = Slate500, fontSize = 12.sp)
+                        } else {
+                            chronological.groupBy { DateUtils.formatDate(it.transactionDate) }.forEach { (date, dayTransactions) ->
+                                Surface(shape = RoundedCornerShape(10.dp), color = Slate800, modifier = Modifier.fillMaxWidth()) {
+                                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(date, color = Color.White, fontWeight = FontWeight.Bold)
+                                        Text("Opening: ${CurrencyFormatter.formatInr(abs(runningBalance))}${if (runningBalance > 0.0001) " DR" else if (runningBalance < -0.0001) " CR" else ""}", color = Color.White, fontSize = 11.sp)
+                                    }
+                                }
+                                dayTransactions.forEach { tx ->
+                                    val customerName = customers.find { it.id == tx.customerId }?.name ?: "Customer"
+                                    val inv = InventoryParser.parse(tx.description)
+                                    Text(customerName, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Slate700)
+                                    if (inv.isNotEmpty()) {
+                                        inv.forEach { line ->
+                                            Text("${line.name} ${line.quantity} ${line.unit} × ${line.rate} = ${CurrencyFormatter.formatInr(line.amount)}", fontSize = 13.sp, color = Slate900, modifier = Modifier.padding(start = 8.dp))
+                                        }
+                                        runningBalance += tx.amount
+                                        Text("Total = ${CurrencyFormatter.formatInr(tx.amount)}", fontWeight = FontWeight.Bold, color = Indigo600, modifier = Modifier.fillMaxWidth())
+                                    } else {
+                                        val label = if (tx.transactionType == TransactionType.CREDIT.name) "Received Payment" else "Debit Entry"
+                                        Text("$label = ${CurrencyFormatter.formatInr(tx.amount)}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (tx.transactionType == TransactionType.CREDIT.name) CreditGreen else DebitRed, modifier = Modifier.padding(start = 8.dp))
+                                        runningBalance += if (tx.transactionType == TransactionType.CREDIT.name) -tx.amount else tx.amount
+                                    }
+                                    Text("Running Balance = ${CurrencyFormatter.formatInr(abs(runningBalance))}${if (runningBalance > 0.0001) " DR" else if (runningBalance < -0.0001) " CR" else ""}", fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Slate700, modifier = Modifier.fillMaxWidth())
+                                    HorizontalDivider(color = BorderSlate100)
+                                }
                             }
-                            Text("Total = ${CurrencyFormatter.formatInr(tx.amount)}", fontWeight = FontWeight.ExtraBold, color = Indigo600)
-                            HorizontalDivider(color = BorderSlate100)
                         }
+                        HorizontalDivider(color = BorderSlate100)
+                        Text("FINAL BALANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Slate500)
+                        Text("${CurrencyFormatter.formatInr(abs(runningBalance))}${if (runningBalance > 0.0001) " DR" else if (runningBalance < -0.0001) " CR" else ""}", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = if (runningBalance >= 0) DebitRed else CreditGreen)
                     }
                 }
             }
