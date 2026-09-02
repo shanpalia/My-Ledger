@@ -13,8 +13,8 @@ android {
     applicationId = "com.aistudio.myledger.bkrv"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "1.3.3"
+    versionCode = 6
+    versionName = "1.4.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

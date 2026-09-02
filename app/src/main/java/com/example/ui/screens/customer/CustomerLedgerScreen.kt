@@ -64,6 +64,9 @@ fun CustomerLedgerScreen(
     var searchQuery by remember { mutableStateOf("") }
     var showReminderDialog by remember { mutableStateOf(false) }
     var selectedTxForDetails by remember { mutableStateOf<LedgerTransaction?>(null) }
+    var showProfileDialog by remember { mutableStateOf(false) }
+    var showOpeningBalanceDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     val totalDebit = summary?.totalDebit ?: 0.0
     val totalCredit = summary?.totalCredit ?: 0.0
@@ -107,6 +110,15 @@ fun CustomerLedgerScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showProfileDialog = true }) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "Edit Customer", tint = Slate700)
+                    }
+                    IconButton(onClick = { showOpeningBalanceDialog = true }) {
+                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = "Opening Balance", tint = PrimaryBlueLight)
+                    }
+                    IconButton(onClick = { showDeleteDialog = true }) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "Delete Customer", tint = DebitRed)
+                    }
                     // PDF Statement Button
                     IconButton(
                         onClick = {
@@ -446,6 +458,49 @@ fun CustomerLedgerScreen(
     }
 
     // Payment Reminder Dialog
+    if (showProfileDialog && customer != null) {
+        EditCustomerDialog(
+            customer = customer,
+            onDismiss = { showProfileDialog = false },
+            onSave = { updated ->
+                viewModel.updateCustomer(updated)
+                showProfileDialog = false
+            }
+        )
+    }
+
+    if (showOpeningBalanceDialog && customer != null) {
+        OpeningBalanceDialog(
+            customer = customer,
+            onDismiss = { showOpeningBalanceDialog = false },
+            onSave = { amount, type ->
+                viewModel.updateCustomer(
+                    customer.copy(
+                        openingBalance = amount,
+                        openingBalanceType = type.name
+                    )
+                )
+                showOpeningBalanceDialog = false
+            }
+        )
+    }
+
+    if (showDeleteDialog && customer != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Customer?") },
+            text = { Text("This will delete ${customer.name}'s profile and all associated ledger entries. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteCustomer(customer.id)
+                    showDeleteDialog = false
+                    onNavigateBack()
+                }) { Text("Delete", color = DebitRed, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") } }
+        )
+    }
+
     if (showReminderDialog && customer != null) {
         val defaultTemplate = notifSettings?.reminderTemplate
             ?: "🏪 {shop_name}\nDear {customer_name},\nYour pending balance is ₹{balance}.\nPlease clear the payment at your convenience.\nThank You\n{shop_name}"
@@ -762,4 +817,65 @@ fun LedgerTableRow(
             }
         }
     }
+}
+
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditCustomerDialog(
+    customer: com.example.data.model.Customer,
+    onDismiss: () -> Unit,
+    onSave: (com.example.data.model.Customer) -> Unit
+) {
+    var name by remember { mutableStateOf(customer.name) }
+    var mobile by remember { mutableStateOf(customer.mobile) }
+    var alt by remember { mutableStateOf(customer.alternateMobile) }
+    var address by remember { mutableStateOf(customer.address) }
+    var notes by remember { mutableStateOf(customer.notes) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Edit Customer") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(mobile, { mobile = it }, label = { Text("Mobile") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(alt, { alt = it }, label = { Text("Alternate Mobile") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(address, { address = it }, label = { Text("Address") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = name.isNotBlank(), onClick = { onSave(customer.copy(name=name.trim(), mobile=mobile.trim(), alternateMobile=alt.trim(), address=address.trim(), notes=notes.trim())) }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun OpeningBalanceDialog(
+    customer: com.example.data.model.Customer,
+    onDismiss: () -> Unit,
+    onSave: (Double, BalanceType) -> Unit
+) {
+    var amount by remember { mutableStateOf(if (customer.openingBalance == 0.0) "" else customer.openingBalance.toString()) }
+    var type by remember { mutableStateOf(if (customer.openingBalanceType == BalanceType.CREDIT.name) BalanceType.CREDIT else BalanceType.DEBIT) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Previous / Opening Balance") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Add or correct the balance that existed before the recorded transactions.", fontSize = 12.sp, color = Slate500)
+                OutlinedTextField(amount, { amount = it.filter { ch -> ch.isDigit() || ch == '.' } }, label = { Text("Amount (₹)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = type == BalanceType.DEBIT, onClick = { type = BalanceType.DEBIT }, label = { Text("DR — Customer owes") })
+                    FilterChip(selected = type == BalanceType.CREDIT, onClick = { type = BalanceType.CREDIT }, label = { Text("CR — You owe") })
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = (amount.toDoubleOrNull() ?: -1.0) >= 0.0, onClick = { onSave(amount.toDoubleOrNull() ?: 0.0, type) }) { Text("Save Balance") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
